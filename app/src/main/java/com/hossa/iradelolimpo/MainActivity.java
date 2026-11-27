@@ -16,8 +16,13 @@ import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
-import androidx.webkit.WebViewAssetLoader;
+import android.util.Log;
+import android.webkit.ConsoleMessage;
+import android.webkit.WebChromeClient;
+import java.io.InputStream;
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 
 public class MainActivity extends Activity {
     private WebView web;
@@ -32,9 +37,6 @@ public class MainActivity extends Activity {
         setContentView(web);
         hideBars();
 
-        final WebViewAssetLoader loader = new WebViewAssetLoader.Builder()
-                .addPathHandler("/assets/", new WebViewAssetLoader.AssetsPathHandler(this))
-                .build();
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
@@ -45,7 +47,31 @@ public class MainActivity extends Activity {
         web.setWebViewClient(new WebViewClient() {
             @Override
             public WebResourceResponse shouldInterceptRequest(WebView v, WebResourceRequest r) {
-                return loader.shouldInterceptRequest(r.getUrl());
+                android.net.Uri u = r.getUrl();
+                if (!"appassets.androidplatform.net".equals(u.getHost())) return null;
+                String path = u.getPath();
+                if (path == null || !path.startsWith("/assets/")) return null;
+                String file = path.substring("/assets/".length());
+                try {
+                    InputStream in = getAssets().open(file);
+                    String mime = mimeOf(file);
+                    String enc = mime.startsWith("text/") || mime.contains("javascript") || mime.contains("json") ? "utf-8" : null;
+                    WebResourceResponse res = new WebResourceResponse(mime, enc, in);
+                    Map<String, String> h = new HashMap<>();
+                    h.put("Access-Control-Allow-Origin", "*");
+                    h.put("Cache-Control", "no-cache");
+                    res.setResponseHeaders(h);
+                    return res;
+                } catch (Exception e) {
+                    return new WebResourceResponse("text/plain", "utf-8", 404, "Not Found", new HashMap<>(), null);
+                }
+            }
+        });
+        web.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public boolean onConsoleMessage(ConsoleMessage m) {
+                Log.d("IraDelOlimpo", m.message() + " @" + m.sourceId() + ":" + m.lineNumber());
+                return true;
             }
         });
         web.addJavascriptInterface(new Bridge(), "AndroidApp");
@@ -96,6 +122,20 @@ public class MainActivity extends Activity {
     @Override protected void onPause() { super.onPause(); web.onPause(); if (tts != null) tts.stop(); }
     @Override protected void onResume() { super.onResume(); web.onResume(); hideBars(); }
     @Override protected void onDestroy() { if (tts != null) tts.shutdown(); web.destroy(); super.onDestroy(); }
+
+    private static String mimeOf(String f) {
+        String n = f.toLowerCase(Locale.ROOT);
+        if (n.endsWith(".js") || n.endsWith(".mjs")) return "text/javascript";
+        if (n.endsWith(".html")) return "text/html";
+        if (n.endsWith(".css")) return "text/css";
+        if (n.endsWith(".json")) return "application/json";
+        if (n.endsWith(".jpg") || n.endsWith(".jpeg")) return "image/jpeg";
+        if (n.endsWith(".png")) return "image/png";
+        if (n.endsWith(".woff2")) return "font/woff2";
+        if (n.endsWith(".svg")) return "image/svg+xml";
+        if (n.endsWith(".wasm")) return "application/wasm";
+        return "application/octet-stream";
+    }
 
     class Bridge {
         @JavascriptInterface

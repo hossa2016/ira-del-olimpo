@@ -150,7 +150,8 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
 <div class="cine" id="cine" hidden><div class="cbar"></div><div class="cbar b"></div><div class="ctit" id="cineT"></div><span class="cskip" id="cineSkip">Toca para saltar</span></div>
 <div class="fade" id="fade"></div>
 <script>
-setTimeout(()=>{if(!window.__ira){const t=document.getElementById('loadTxt');if(t)t.textContent='No se pudo cargar el motor 3D. Revisa tu conexión y recarga.'}},20000);
+window.__errs=[];addEventListener('error',e=>{window.__errs.push((e.message||'')+' '+((e.target&&e.target.src)||e.filename||''))},true);
+setTimeout(()=>{if(!window.__ira){const t=document.getElementById('loadTxt');if(t)t.textContent='No se pudo cargar el motor 3D. '+(window.__errs.join(' | ')||'Cierra y vuelve a abrir la app.')}},20000);
 </script>
 <script type="module">
 import * as THREE from 'three';
