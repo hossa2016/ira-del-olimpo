@@ -12,6 +12,7 @@ var clock := 0.0
 var trauma := 0.0
 var noise := FastNoiseLite.new()
 var fov_add := 0.0
+var sprint_k := 0.0
 var _fov_t := 0.0
 var kick_v := Vector3.ZERO
 var kick_p := Vector3.ZERO
@@ -84,9 +85,10 @@ func tick(dt: float, hero: Hero) -> void:
 	global_position = global_position.lerp(piv, 1.0 - exp(-10.0 * dt))
 	var p := pitch + (0.08 if portrait else 0.0)
 	rotation = Vector3(-p, yaw + PI, 0)
-	arm.spring_length = lerpf(arm.spring_length, (4.4 if portrait else 3.6) + big, 1.0 - exp(-3.0 * dt))
+	arm.spring_length = lerpf(arm.spring_length, (4.4 if portrait else 3.6) + big + sprint_k * 0.5, 1.0 - exp(-3.0 * dt))
 	fov_add = move_toward(fov_add, 0.0, dt * 18.0)
-	cam.fov = (66.0 if portrait else 58.0) + fov_add
+	sprint_k = lerpf(sprint_k, 1.0 if hero.sprinting else 0.0, 1.0 - exp(-3.0 * dt))
+	cam.fov = (66.0 if portrait else 58.0) + fov_add + sprint_k * 7.0
 	# resorte para el empujón
 	kick_v += (-kick_p * 260.0 - kick_v * 22.0) * dt
 	kick_p += kick_v * dt

@@ -11,7 +11,7 @@ static func get_m(key: String) -> Material:
 		"bronze":
 			m.albedo_color = Color(0.72, 0.5, 0.26); m.metallic = 1.0; m.roughness = 0.36
 		"dark_bronze":
-			m.albedo_color = Color(0.2, 0.17, 0.14); m.metallic = 0.9; m.roughness = 0.35
+			m.albedo_color = Color(0.36, 0.28, 0.2); m.metallic = 0.9; m.roughness = 0.35
 		"patina":
 			m.albedo_color = Color(0.37, 0.4, 0.27); m.metallic = 0.75; m.roughness = 0.55
 		"steel":
@@ -36,7 +36,10 @@ static func get_m(key: String) -> Material:
 		"gold":
 			m.albedo_color = Color(0.95, 0.7, 0.32); m.metallic = 1.0; m.roughness = 0.24
 		"horse":
-			m.albedo_color = Color(0.5, 0.08, 0.05); m.roughness = 0.95; m.cull_mode = BaseMaterial3D.CULL_DISABLED
+			m.albedo_color = Color(0.62, 0.07, 0.04); m.roughness = 0.9; m.cull_mode = BaseMaterial3D.CULL_DISABLED
+			m.albedo_texture = load("res://assets/tex/hair_c.jpg")
+			m.normal_enabled = true; m.normal_texture = load("res://assets/tex/hair_n.jpg"); m.normal_scale = 0.8
+			m.rim_enabled = true; m.rim = 0.4; m.rim_tint = 0.3
 		"helm_bronze":
 			m.albedo_color = Color(0.7, 0.48, 0.25); m.metallic = 1.0; m.roughness = 0.34; m.cull_mode = BaseMaterial3D.CULL_DISABLED
 		"helm_patina":
@@ -58,13 +61,13 @@ static func get_m(key: String) -> Material:
 			m.normal_enabled = true; m.normal_texture = load("res://assets/tex/fur_n.jpg"); m.roughness = 0.95
 			m.uv1_triplanar = true; m.uv1_scale = Vector3.ONE * 1.6
 		"fur_bull":
-			m.albedo_texture = load("res://assets/tex/fur_c.jpg"); m.albedo_color = Color(0.62, 0.45, 0.35)
+			m.albedo_texture = load("res://assets/tex/fur_c.jpg"); m.albedo_color = Color(0.85, 0.62, 0.48)
 			m.normal_enabled = true; m.normal_texture = load("res://assets/tex/fur_n.jpg"); m.roughness = 0.9
 			m.uv1_triplanar = true; m.uv1_scale = Vector3.ONE * 3.0
 		"chiton":
 			m.albedo_color = Color(0.4, 0.07, 0.05); m.roughness = 0.95
 		"linen":
-			m.albedo_color = Color(0.82, 0.76, 0.64); m.roughness = 0.95
+			m.albedo_color = Color(0.66, 0.58, 0.45); m.roughness = 0.95
 		"gums":
 			m.albedo_color = Color(0.35, 0.06, 0.06); m.roughness = 0.35
 	if key in ["bronze", "dark_bronze", "patina", "gold", "steel", "helm_bronze", "helm_patina", "helm_gold", "helm_dark"]:
@@ -84,6 +87,22 @@ static func _hammered(m: StandardMaterial3D, key: String) -> void:
 	m.uv1_triplanar = true
 	m.uv1_scale = Vector3.ONE * (5.0 if key == "steel" else 3.5)
 	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+
+## Escudo pintado: bronce con meandro y emblema, proyectado de frente sobre el cuenco.
+static func shield(tex: String, r: float) -> StandardMaterial3D:
+	var key := "shield_%s_%.2f" % [tex, r]
+	if _c.has(key):
+		return _c[key]
+	var m := StandardMaterial3D.new()
+	m.albedo_texture = load("res://assets/tex/shield_%s.jpg" % tex)
+	m.metallic = 0.85
+	m.roughness = 0.75
+	m.roughness_texture = load("res://assets/tex/bronze_r.jpg")
+	m.normal_enabled = true
+	m.normal_texture = load("res://assets/tex/bronze_n.jpg")
+	m.normal_scale = 0.6
+	_c[key] = m
+	return m
 
 static func skin(tint: Color, tex := "c") -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()

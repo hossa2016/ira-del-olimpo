@@ -186,6 +186,63 @@ def gen_water():
     h = pn(2.2, 71) * 0.7 + pn(1.6, 72) * 0.3
     normal_from_h(h, 3.0).save(os.path.join(OUT, "water_n.jpg"), quality=92)
 
-gen_floor(); gen_stone(); gen_rock(); gen_fur(); gen_bronze(); gen_water()
+def gen_hair():
+    r = np.random.default_rng(81)
+    z = r.normal(size=(N, N))
+    k = 40
+    acc = np.zeros_like(z)
+    for i in range(k):
+        acc += np.roll(z, i, 0)
+    acc /= np.sqrt(k)
+    acc = (acc - acc.mean()) / acc.std()
+    low = pnoise(N, 1.4, 82)
+    v = np.clip(0.72 + 0.16 * acc + 0.1 * low, 0, 1)
+    save(np.stack([v * 255] * 3, -1), "hair_c.jpg")
+    normal_from_h(acc * 0.6, 1.8).save(os.path.join(OUT, "hair_n.jpg"), quality=92)
+
+def gen_shields():
+    """Escudos pintados sobre bronce: meandro griego en el borde y emblema central."""
+    from PIL import ImageDraw
+    M = 512
+    base = np.asarray(Image.open(os.path.join(OUT, "bronze_c.jpg")).convert("RGB").resize((M, M))).astype(float)
+    bronze = base * np.array([0.78, 0.55, 0.3]) / 0.9
+    def meander(d, cx, r0, r1, col):
+        n = 28
+        for i in range(n):
+            a0 = i / n * 2 * np.pi
+            a1 = (i + 1) / n * 2 * np.pi
+            pts = []
+            # greca: escalones entre dos radios
+            for (aa, rr) in [(a0, r0), (a0, r1), (a0 + (a1 - a0) * 0.75, r1), (a0 + (a1 - a0) * 0.75, (r0 + r1) / 2 + 2),
+                              (a0 + (a1 - a0) * 0.35, (r0 + r1) / 2 + 2), (a0 + (a1 - a0) * 0.35, r0 + 6)]:
+                pts.append((cx + np.cos(aa) * rr, cx + np.sin(aa) * rr))
+            d.line(pts, fill=col, width=7)
+        d.ellipse([cx - r0 + 4, cx - r0 + 4, cx + r0 - 4, cx + r0 + -4], outline=col, width=5)
+        d.ellipse([cx - r1 - 6, cx - r1 - 6, cx + r1 + 6, cx + r1 + 6], outline=col, width=5)
+    # Damón: maza de Heracles (emblema de Tebas) en negro sobre bronce
+    img = Image.fromarray(np.clip(bronze, 0, 255).astype(np.uint8))
+    d = ImageDraw.Draw(img)
+    cx = M // 2
+    meander(d, cx, 196, 236, (28, 16, 10))
+    club = [(cx - 18, cx + 150), (cx + 18, cx + 150), (cx + 42, cx - 40), (cx + 52, cx - 140), (cx, cx - 175), (cx - 52, cx - 140), (cx - 42, cx - 40)]
+    d.polygon(club, fill=(28, 16, 10))
+    for (kx, ky) in [(-48, -110), (50, -70), (-46, -20), (40, 20), (-30, 60)]:
+        d.ellipse([cx + kx - 14, cx + ky - 14, cx + kx + 14, cx + ky + 14], fill=(28, 16, 10))
+    img = img.filter(ImageFilter.GaussianBlur(0.8))
+    img.save(os.path.join(OUT, "shield_damon.jpg"), quality=92)
+    # Ares y su guardia: campo rojo con jabalí estilizado (espiral) y borde de bronce
+    img = Image.fromarray(np.clip(bronze, 0, 255).astype(np.uint8))
+    d = ImageDraw.Draw(img)
+    d.ellipse([cx - 190, cx - 190, cx + 190, cx + 190], fill=(120, 20, 14))
+    meander(d, cx, 196, 236, (40, 12, 8))
+    for k in range(3):
+        a0 = k * 2 * np.pi / 3
+        pts = [(cx + np.cos(a0 + t * 2.4) * (20 + t * 120), cx + np.sin(a0 + t * 2.4) * (20 + t * 120)) for t in np.linspace(0, 1, 40)]
+        d.line(pts, fill=(225, 175, 90), width=22)
+    d.ellipse([cx - 30, cx - 30, cx + 30, cx + 30], fill=(225, 175, 90))
+    img = img.filter(ImageFilter.GaussianBlur(0.8))
+    img.save(os.path.join(OUT, "shield_ares.jpg"), quality=92)
+
+gen_floor(); gen_stone(); gen_rock(); gen_fur(); gen_bronze(); gen_water(); gen_hair(); gen_shields()
 gen_pale(os.path.join(OUT, "body_c.jpg"))
 print("ok")

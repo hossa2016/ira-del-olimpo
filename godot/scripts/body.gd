@@ -34,11 +34,11 @@ func setup(o: Dictionary) -> void:
 	if o.get("bull", false):
 		_bull_head()
 	elif o.get("helmet", true):
-		_helmet(o.get("crest", "horse"), "helm_" + ("bronze" if mk == "bronze" else mk.replace("dark_bronze", "dark")))
+		_helmet(o.get("crest", "horse"), "helm_" + ("bronze" if mk == "bronze" else mk.replace("dark_bronze", "dark")), o.get("helm", "attic"))
 	if o.get("armor", false):
 		_armor(metal)
 	if o.get("shield", false):
-		_shield(metal, o.get("shield_face", "cloth"), o.get("shield_r", 0.42))
+		_shield(metal, o.get("shield_face", "cloth"), o.get("shield_r", 0.42), o.get("emblem", "damon"))
 	match o.get("weapon", ""):
 		"sword":
 			_sword(metal, o.get("blade", 1.0))
@@ -102,12 +102,16 @@ func _box(x: float, y: float, z: float) -> BoxMesh:
 	return m
 
 # ---------- piezas ----------
-func _helmet(crest: String, hm: String) -> void:
+func _helmet(crest: String, hm: String, style := "attic") -> void:
 	var g := Node3D.new()
-	g.position = Vector3(0, 0.07, -0.022)
+	g.position = Vector3(0, 0.07 if style != "attic" else 0.098, -0.022)
 	g.scale = Vector3.ONE * 0.97
 	_att("Head").add_child(g)
-	var helm := _mesh(g, Geo.corinthian_helmet(), Mats.get_m(hm))
+	var helm := _mesh(g, Geo.corinthian_helmet(style), Mats.get_m(hm))
+	if style == "attic":
+		# visera sobre la frente
+		var brow := _mesh(g, TorusMeshHelper.make(0.152, 0.012), Mats.get_m(hm), Vector3(0, 0.052, 0.012), Vector3(0.08, 0, 0), Vector3(1.0, 1.0, 1.14))
+		brow.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	helm.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	if crest != "":
 		var cr := _mesh(g, Geo.crest(), Mats.get_m(crest))
@@ -133,8 +137,9 @@ func _bull_head() -> void:
 func _armor(metal: Material) -> void:
 	# coraza musculada: dos valvas redondeadas (pecho y espalda) que siguen el torso, con hombreras de lino
 	var ch := _att("spine_03")
-	_mesh(ch, _sph(1.0), metal, Vector3(0, 0.15, 0.02), Vector3(0.12, 0, 0), Vector3(0.25, 0.24, 0.16))
-	_mesh(ch, _sph(1.0), metal, Vector3(0, -0.02, 0.015), Vector3(0.08, 0, 0), Vector3(0.215, 0.22, 0.15))
+	# medidas tomadas del esqueleto: spine_03 a 1,31 m, cuello a 1,52 m, cintura ~1,0 m
+	_mesh(ch, _sph(1.0), metal, Vector3(0, 0.045, 0.02), Vector3(-0.12, 0, 0), Vector3(0.21, 0.17, 0.155))
+	_mesh(ch, _sph(1.0), metal, Vector3(0, -0.16, 0.0), Vector3(0.1, 0, 0), Vector3(0.185, 0.16, 0.135))
 	var lin := Mats.get_m("linen")
 	for s in [-1, 1]:
 		var sh := _att("upperarm_l" if s < 0 else "upperarm_r")
@@ -156,16 +161,16 @@ func _armor(metal: Material) -> void:
 	for n in ["lowerarm_l", "lowerarm_r"]:
 		_mesh(_att(n), _cyl(0.052, 0.045, 0.17, 16), Mats.get_m("leather"), Vector3(0, 0.15, 0))
 
-func _shield(metal: Material, face: String, r: float) -> void:
+func _shield(metal: Material, face: String, r: float, emblem := "damon") -> void:
 	var g := Node3D.new()
 	g.position = Vector3(-0.1, 0.12, 0)
 	_att("lowerarm_l").add_child(g)
 	# aspis: cuenco poco profundo con borde ancho
-	var bowl := _sph(r, true)
-	_mesh(g, bowl, metal, Vector3(-0.01, 0, 0), Vector3(0, 0, PI / 2), Vector3(1, 0.16, 1))
+	var bw := _mesh(g, Geo.shield_bowl(r, r * 0.17), Mats.shield(emblem, r), Vector3(-0.01, 0, 0), Vector3(0, 0, PI / 2))
+	bw.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	_mesh(g, Geo.shield_bowl(r, r * 0.17, true), Mats.get_m("leather"), Vector3(-0.01, 0, 0), Vector3(0, 0, PI / 2))
 	_mesh(g, TorusMeshHelper.make(r, 0.026), metal, Vector3.ZERO, Vector3(0, 0, PI / 2))
 	_mesh(g, _cyl(r * 0.62, r * 0.62, 0.01, 40), Mats.get_m(face), Vector3(-0.027, 0, 0), Vector3(0, 0, PI / 2))
-	_mesh(g, _sph(r * 0.15), metal, Vector3(-0.035, 0, 0), Vector3.ZERO, Vector3(0.6, 1, 1))
 
 func _sword(metal: Material, blade := 1.0) -> void:
 	sword = Node3D.new()

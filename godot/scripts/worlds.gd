@@ -306,6 +306,113 @@ static func probe(root: Node3D, h := 12.0) -> void:
 	rp.ambient_mode = ReflectionProbe.AMBIENT_DISABLED
 	root.add_child(rp)
 
+# ---------------- utilería de detalle ----------------
+static func amphorae(root: Node3D, n: int, seed_i: int, broken := 0.3) -> void:
+	var clay := StandardMaterial3D.new()
+	clay.albedo_color = Color(0.6, 0.31, 0.17)
+	clay.roughness = 0.75
+	clay.rim_enabled = true
+	clay.rim = 0.15
+	var band := StandardMaterial3D.new()
+	band.albedo_color = Color(0.06, 0.04, 0.03)
+	band.roughness = 0.5
+	var rnd := RandomNumberGenerator.new()
+	rnd.seed = seed_i
+	for k in range(n):
+		var a := rnd.randf() * TAU
+		var p := Vector3(cos(a), 0, sin(a)) * (AR + rnd.randf_range(0.4, 1.4))
+		var g := Node3D.new()
+		g.position = p
+		g.rotation.y = rnd.randf() * TAU
+		var sc := rnd.randf_range(0.8, 1.15)
+		g.scale = Vector3.ONE * sc
+		root.add_child(g)
+		var lying := rnd.randf() < broken
+		if lying:
+			g.rotation.z = PI / 2 - 0.15
+			g.position.y = 0.2 * sc
+		var am := put(g, Geo.amphora(), clay, Vector3.ZERO)
+		am.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		# banda de figuras negras y asas
+		var t := TorusMesh.new()
+		t.inner_radius = 0.225
+		t.outer_radius = 0.25
+		t.rings = 24
+		t.ring_segments = 4
+		put(g, t, band, Vector3(0, 0.5, 0), Vector3.ZERO, null, Vector3(1, 2.2, 1))
+		for s in [-1.0, 1.0]:
+			var h := TorusMesh.new()
+			h.inner_radius = 0.07
+			h.outer_radius = 0.09
+			h.rings = 12
+			h.ring_segments = 6
+			put(g, h, clay, Vector3(s * 0.14, 0.86, 0), Vector3(PI / 2, 0, 0), null, Vector3(1, 1, 1.4))
+
+static func drums(root: Node3D, marble: Material, n: int, seed_i: int) -> void:
+	var rnd := RandomNumberGenerator.new()
+	rnd.seed = seed_i
+	for k in range(n):
+		var a := rnd.randf() * TAU
+		var p := Vector3(cos(a), 0, sin(a)) * (AR + rnd.randf_range(-0.2, 1.0))
+		var d := put(root, Geo.fluted_column(1.1, 0.6, 0.58), marble, p + Vector3(0, 0.58, 0), Vector3(0, rnd.randf() * TAU, PI / 2))
+		d.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		for j in range(4):
+			var q := p + Vector3(rnd.randf_range(-1.2, 1.2), 0.05, rnd.randf_range(-1.2, 1.2))
+			put(root, Geo.rock(seed_i * 10 + j + k * 4, rnd.randf_range(0.08, 0.2)), marble, q, Vector3(rnd.randf(), rnd.randf(), 0))
+
+static func statue(root: Node3D, p: Vector3, yaw: float, mat_col: Color, metallic: float, pose := "Idle_Shield_Loop") -> void:
+	var ped := StandardMaterial3D.new()
+	ped.albedo_color = mat_col.darkened(0.15)
+	ped.roughness = 0.6
+	put(root, box(1.3, 1.2, 1.3), ped, p + Vector3(0, 0.6, 0), Vector3(0, yaw, 0))
+	put(root, box(1.5, 0.15, 1.5), ped, p + Vector3(0, 1.25, 0), Vector3(0, yaw, 0))
+	var st := Body.new()
+	root.add_child(st)
+	st.setup({"tint": mat_col, "metal": "gold" if metallic > 0.5 else "patina", "crest": "horse", "weapon": "spear", "shield": true, "armor": true, "scale": 1.3, "helm": "corinthian"})
+	st.position = p + Vector3(0, 1.32, 0)
+	st.rotation.y = yaw
+	var m := StandardMaterial3D.new()
+	m.albedo_color = mat_col
+	m.metallic = metallic
+	m.roughness = 0.35 if metallic > 0.5 else 0.7
+	if metallic < 0.5:
+		m.albedo_texture = load("res://assets/tex/marble_c.jpg")
+		m.uv1_triplanar = true
+		m.uv1_scale = Vector3.ONE * 2.0
+	for mi in st.find_children("*", "MeshInstance3D", true, false):
+		mi.material_override = m
+	st.play(pose, 0.0, 0.0)
+
+static func steps(root: Node3D, mat: Material) -> void:
+	# escalinata que baja del borde de la plataforma
+	for k in range(1, 4):
+		var c := CylinderMesh.new()
+		c.top_radius = AR + 7 + k * 0.7
+		c.bottom_radius = AR + 7 + k * 0.7
+		c.height = 0.35
+		c.radial_segments = 96
+		put(root, c, mat, Vector3(0, -0.175 - k * 0.35, 0))
+
+static func temple(root: Node3D, p: Vector3, yaw: float, marble: Material, s := 1.0) -> void:
+	var g := Node3D.new()
+	g.position = p
+	g.rotation.y = yaw
+	g.scale = Vector3.ONE * s
+	root.add_child(g)
+	put(g, box(30, 2, 14), marble, Vector3(0, 1, 0))
+	for i in range(8):
+		var c := CylinderMesh.new()
+		c.top_radius = 0.75
+		c.bottom_radius = 0.85
+		c.height = 10
+		c.radial_segments = 12
+		put(g, c, marble, Vector3(-12.6 + i * 3.6, 7, 6))
+		put(g, c, marble, Vector3(-12.6 + i * 3.6, 7, -6))
+	put(g, box(30, 1.6, 14), marble, Vector3(0, 12.8, 0))
+	var ped := PrismMesh.new()
+	ped.size = Vector3(30, 4, 14)
+	put(g, ped, marble, Vector3(0, 15.6, 0))
+
 static func _tebas(g: Game, root: Node3D) -> void:
 	platform(root, floor_mat(0.17, Color(0.82, 0.74, 0.64)))
 	motes(root, g, Color(1.0, 0.85, 0.6, 0.5), 60)
@@ -335,6 +442,16 @@ static func _tebas(g: Game, root: Node3D) -> void:
 	for k in range(4):
 		var a := k / 4.0 * TAU + PI / 4
 		brazier(g, root, Vector3(cos(a), 0, sin(a)) * (AR + 1.2))
+	steps(root, floor_mat(0.17, Color(0.78, 0.7, 0.6)))
+	amphorae(root, 7, 3)
+	drums(root, marble, 3, 5)
+	for k in range(2):
+		var a := PI * 0.5 + (k - 0.5) * 1.1
+		statue(root, Vector3(cos(a), 0, sin(a)) * (AR + 1.6), -a - PI / 2, Color(0.85, 0.82, 0.76), 0.0)
+	var far_m := StandardMaterial3D.new()
+	far_m.albedo_color = Color(0.78, 0.72, 0.64)
+	far_m.roughness = 0.9
+	temple(root, Vector3(-120, -6, 95), 0.9, far_m, 1.0)
 
 static func _laberinto(g: Game, root: Node3D) -> void:
 	platform(root, floor_mat(0.21, Color(0.55, 0.46, 0.4), 0.92))
@@ -398,6 +515,8 @@ static func _laberinto(g: Game, root: Node3D) -> void:
 	for k in range(4):
 		var a := k / 4.0 * TAU
 		brazier(g, root, Vector3(cos(a), 0, sin(a)) * 6.0, "fire", 0.85)
+	amphorae(root, 6, 11, 0.5)
+	drums(root, rock_m, 2, 13)
 
 static func _inframundo(g: Game, root: Node3D) -> void:
 	platform(root, tex_mat("res://assets/tex/rock_c.jpg", "res://assets/tex/rock_n.jpg", "", 0.12, Color(0.5, 0.52, 0.55)))
@@ -464,6 +583,9 @@ static func _olimpo(g: Game, root: Node3D) -> void:
 		sp.rings = 8
 		put(root, sp, cloud, Vector3(cos(a) * rr, -10.0 - (k % 3) * 2.0, sin(a) * rr), Vector3.ZERO, null, Vector3(1.6, 0.42, 1.2))
 	_sea(root, Color(0.95, 0.92, 0.9), 1.0, 0.0, -12.0)
+	steps(root, marble)
+	temple(root, Vector3(0, 8, -140), 0.0, marble, 1.6)
+	amphorae(root, 5, 21, 0.0)
 	var gold := Mats.get_m("gold")
 	for i in range(20):
 		var a := i / 20.0 * TAU

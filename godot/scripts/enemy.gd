@@ -63,7 +63,7 @@ func setup(k: String, lv: float) -> void:
 			o = {"tint": Color(0.55, 0.66, 0.75), "skin": "p", "helmet": false, "eyes": "cyan"}
 		"hop":
 			max_hp = 46.0; speed = 2.1; dmg = 11.0; attacks = [SPEAR]; zombie = false; guard_chance = 0.7
-			o = {"tint": Color(0.95, 0.82, 0.72), "metal": "gold", "crest": "horse", "weapon": "spear", "shield": true, "shield_face": "cloth", "armor": true, "eyes": ""}
+			o = {"tint": Color(0.95, 0.82, 0.72), "metal": "gold", "crest": "horse", "weapon": "spear", "shield": true, "shield_face": "cloth", "armor": true, "eyes": "", "helm": "corinthian", "emblem": "ares"}
 		"gig":
 			sc = 1.6; boss = true; max_hp = 260.0; speed = 1.9; dmg = 18.0; r = 0.75; attacks = [GIG]
 			title = "Esparto Gigante"
@@ -77,7 +77,7 @@ func setup(k: String, lv: float) -> void:
 			sc = 1.38; boss = true; max_hp = 480.0; speed = 3.0; dmg = 13.0; r = 0.62; zombie = false; guard_chance = 0.45
 			attacks = [A_COMBO, A_DASH]
 			title = "Ares, dios de la guerra"
-			o = {"tint": Color(1.0, 0.82, 0.74), "metal": "gold", "crest": "horse", "crest_scale": 1.4, "weapon": "sword", "blade": 1.35, "shield": true, "shield_face": "horse", "armor": true, "eyes": "fire", "beard": true}
+			o = {"tint": Color(1.0, 0.82, 0.74), "metal": "gold", "crest": "horse", "crest_scale": 1.4, "weapon": "sword", "blade": 1.35, "shield": true, "shield_face": "horse", "emblem": "ares", "armor": true, "eyes": "fire", "beard": true}
 	max_hp *= lv
 	hp = max_hp
 	A = attacks[0]

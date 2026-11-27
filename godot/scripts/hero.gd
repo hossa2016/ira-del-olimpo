@@ -42,6 +42,8 @@ var blk_since := -9.0
 var block_anim_t := 0.0
 var trail: SwordTrail
 var step_acc := 0.0
+var edge_t := 0.0
+var sprinting := false
 var lock_t = null
 
 func _ready() -> void:
@@ -95,6 +97,7 @@ func physics_tick(dt: float, inp: Dictionary, cam_yaw: float) -> void:
 	if wish.length() > 0.01:
 		wish = wish.normalized()
 	var prev_face := face
+	sprinting = false
 	var blk: bool = inp.get("blk", false)
 	if blk and blk_since < 0.0:
 		blk_since = clock
@@ -169,9 +172,9 @@ func physics_tick(dt: float, inp: Dictionary, cam_yaw: float) -> void:
 		vel = vel.lerp(Vector3.ZERO, 1.0 - exp(-9.0 * dt))
 		if st_t >= 1.0:
 			st = "loco"
-	else:
+	elif st == "hurt":
 		vel = vel.lerp(Vector3.ZERO, 1.0 - exp(-9.0 * dt))
-		if st == "hurt" and st_t >= 0.35:
+		if st_t >= 0.35:
 			st = "loco"
 
 	if st == "loco":
@@ -184,13 +187,18 @@ func physics_tick(dt: float, inp: Dictionary, cam_yaw: float) -> void:
 		elif inp.atk:
 			_start_atk(wish, m)
 		else:
-			var ts := 0.0 if m < 0.15 else 1.3 + (m - 0.15) / 0.85 * 3.7
+			var ts := 0.0 if m < 0.15 else 1.3 + (m - 0.15) / 0.85 * 3.5
+			# sprint: joystick al borde durante medio segundo
+			edge_t = edge_t + dt if m > 0.93 else 0.0
+			sprinting = edge_t > 0.45
+			if sprinting:
+				ts = 7.2
 			var fdir := Vector3(sin(face), 0, cos(face))
 			var align := clampf(fdir.dot(wish) * 0.5 + 0.5, 0.0, 1.0) if m > 0.15 else 1.0
 			# giro brusco a gran velocidad: frena para pivotar en lugar de girar en seco
 			ts *= lerpf(0.3, 1.0, align * align) if vel.length() > 2.0 else 1.0
 			var target := wish * ts
-			var acc := 11.0 if ts > vel.length() else 18.0
+			var acc := (11.0 if not sprinting else 9.0) if ts > vel.length() else 18.0
 			var dv := target - vel
 			if dv.length() > acc * dt:
 				dv = dv.normalized() * acc * dt

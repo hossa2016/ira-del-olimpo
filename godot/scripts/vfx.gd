@@ -128,7 +128,7 @@ func _make_dust() -> CPUParticles3D:
 	c.add_point(Vector2(1, 1.6))
 	ps.scale_amount_curve = c
 	var q := QuadMesh.new()
-	q.size = Vector2(0.45, 0.45)
+	q.size = Vector2(0.3, 0.3)
 	var m := StandardMaterial3D.new()
 	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	m.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
@@ -138,8 +138,8 @@ func _make_dust() -> CPUParticles3D:
 	q.material = m
 	ps.mesh = q
 	var g := Gradient.new()
-	g.set_color(0, Color(0.62, 0.53, 0.43, 0.38))
-	g.set_color(1, Color(0.62, 0.53, 0.43, 0.0))
+	g.set_color(0, Color(0.55, 0.45, 0.35, 0.22))
+	g.set_color(1, Color(0.55, 0.45, 0.35, 0.0))
 	ps.color_ramp = g
 	add_child(ps)
 	return ps

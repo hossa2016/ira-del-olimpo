@@ -306,6 +306,39 @@ func hurt_flash() -> void:
 	flash.color = Color(0.6, 0.1, 0.05, flash.color.a)
 	flash_v = 0.35
 
+var _bars: Array = []
+var _cine_title: Label
+func cine_mode(on: bool, title: String) -> void:
+	if _bars.is_empty():
+		for k in range(2):
+			var b := ColorRect.new()
+			b.color = Color(0, 0, 0, 1)
+			b.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			root.add_child(b)
+			_bars.append(b)
+		_cine_title = _lbl("", 46)
+		_cine_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		root.add_child(_cine_title)
+	var s := root.get_viewport_rect().size
+	var h := s.y * 0.12
+	for k in range(2):
+		var b: ColorRect = _bars[k]
+		b.size = Vector2(s.x, h)
+		b.position = Vector2(0, -h if k == 0 else s.y)
+		var tw := b.create_tween()
+		tw.tween_property(b, "position:y", (0.0 if k == 0 else s.y - h) if on else (-h if k == 0 else s.y), 0.35).set_trans(Tween.TRANS_CUBIC)
+	_cine_title.text = title
+	_cine_title.size = Vector2(s.x, 60)
+	_cine_title.position = Vector2(0, s.y - h - 76)
+	_cine_title.modulate.a = 0.0
+	if on:
+		_cine_title.create_tween().tween_property(_cine_title, "modulate:a", 1.0, 0.6).set_delay(0.4)
+	hud.visible = not on
+	pad.visible = not on
+	score_l.visible = not on and playing
+	wave_l.visible = not on and playing
+	banner.visible = not on
+
 func screen_flash(col: Color, a: float) -> void:
 	flash.color = Color(col.r, col.g, col.b, flash.color.a)
 	flash_v = a

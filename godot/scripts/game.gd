@@ -32,6 +32,10 @@ var _frames := 0
 var unlocked := 0
 var audio: GameAudio
 var vfx: Vfx
+var cine_cam: Camera3D
+var cine := {}
+var menu_t := 0.0
+var cine_light: OmniLight3D
 
 func _ready() -> void:
 	audio = GameAudio.new()
@@ -48,6 +52,18 @@ func _ready() -> void:
 	hero.died.connect(_on_dead)
 	cam = ShoulderCam.new()
 	add_child(cam)
+	cine_cam = Camera3D.new()
+	cine_cam.fov = 40.0
+	cine_cam.near = 0.03
+	cine_cam.far = 600.0
+	add_child(cine_cam)
+	# luz de retrato que acompaña a la cámara de cine (ilumina el rostro aunque esté a contraluz)
+	cine_light = OmniLight3D.new()
+	cine_light.light_color = Color(1.0, 0.85, 0.7)
+	cine_light.light_energy = 0.0
+	cine_light.omni_range = 7.0
+	cine_light.position = Vector3(0.7, 0.5, 0.2)
+	cine_cam.add_child(cine_light)
 	ui = GameUI.new()
 	add_child(ui)
 	ui.play_pressed.connect(_on_play)
@@ -233,6 +249,8 @@ func _start_world(i: int, rebuild: bool) -> void:
 	wave = 0
 	hero.reset_at(Vector3(0, 0, 3))
 	cam.yaw = PI
+	cam.cam.current = true
+	cine = {}
 	ui.hide_screens()
 	ui.set_playing(true)
 	state = "play"
@@ -281,13 +299,84 @@ func _spawn(k: String) -> void:
 	if e.boss:
 		boss = e
 		ui.boss_l.text = e.title
-		ui.set_banner(e.title)
 		cam.shake(0.4)
 		audio.music("jefe", 1.0)
-		audio.say(e.title)
-		sfx({"mino": "roar", "cerb": "growl", "ares": "roar", "gig": "roar"}.get(e.kind, "roar"))
+		get_tree().create_timer(1.0 if e.zombie else 0.3).timeout.connect(func(): _boss_intro(e))
 	elif e.zombie:
 		sfx_at("rise", e.global_position)
+
+## Retrato del héroe en el menú y la historia: primer plano lento de su rostro.
+func _portrait(dt: float) -> void:
+	menu_t += dt
+	var face := _head_pos(hero)
+	var f := Vector3(sin(hero.face), 0, cos(hero.face))
+	var r := Vector3(cos(hero.face), 0, -sin(hero.face))
+	var sway := sin(menu_t * 0.25) * 0.55
+	var dir := (f * cos(sway) + r * sin(sway)).normalized()
+	cine_cam.fov = 32.0
+	cine_light.light_energy = 0.9
+	cine_light.omni_range = 4.0
+	cine_cam.global_position = face + dir * 1.45 + Vector3(0, -0.05, 0)
+	cine_cam.look_at(face + Vector3(0, -0.06, 0) - r * 0.18 * sin(sway))
+	cine_cam.current = true
+
+func _head_pos(n: Node) -> Vector3:
+	if n is Cerberus:
+		return n.heads[1].node.global_position
+	var b: Body = n.body
+	var i := b.skel.find_bone("Head")
+	if i < 0:
+		return n.global_position + Vector3(0, 1.6, 0)
+	return (b.skel.global_transform * b.skel.get_bone_global_pose(i)).origin + Vector3(0, 0.08, 0) * b.scale.x
+
+## Presentación del jefe: cámara lenta hacia su rostro, franjas de cine y su nombre.
+func _boss_intro(e: Enemy) -> void:
+	if not is_instance_valid(e) or e.st == "dead" or state != "play":
+		return
+	cine = {"t": 0.0, "dur": 3.0, "e": e}
+	# el arma baja durante la presentación para no tapar el rostro
+	if e.body and e.body.sword:
+		cine["wrot"] = e.body.sword.rotation
+		e.body.sword.rotation.x += 2.4
+	ui.cine_mode(true, e.title)
+	audio.say(e.title)
+	sfx({"mino": "roar", "cerb": "growl", "ares": "roar", "gig": "roar"}.get(e.kind, "roar"))
+	cine_cam.current = true
+
+func _cine_tick(dt: float) -> void:
+	cine.t += dt
+	var e: Enemy = cine.e
+	if not is_instance_valid(e) or cine.t >= cine.dur:
+		if is_instance_valid(e) and e.body and e.body.sword and cine.has("wrot"):
+			e.body.sword.rotation = cine.wrot
+		cine = {}
+		ui.cine_mode(false, "")
+		cam.cam.current = true
+		cine_light.light_energy = 0.0
+		return
+	var k: float = cine.t / cine.dur
+	var sm := k * k * (3.0 - 2.0 * k)
+	var face := _head_pos(e)
+	var sc: float = e.sc
+	var f := Vector3(sin(e.face), 0, cos(e.face))
+	var r := Vector3(cos(e.face), 0, -sin(e.face))
+	# plano contrapicado: desde abajo, para ver el rostro aunque el jefe incline la cabeza
+	# lado opuesto al arma (mano derecha) para que no tape la cara
+	var side := 1.0
+	var p0 := face + f * 3.0 * sc - r * 1.0 * side * sc + Vector3(0, -0.95 * sc, 0)
+	var p1 := face + f * 1.5 * sc - r * 0.5 * side * side * sc + Vector3(0, -0.7 * sc, 0)
+	cine_light.light_energy = 2.6 if world_i != 1 and world_i != 2 else 4.5
+	cine_light.omni_range = 6.0 * sc
+	cine_cam.fov = lerpf(42.0, 34.0, sm)
+	cine_cam.global_position = p0.lerp(p1, sm) + Vector3(sin(cine.t * 7.0), cos(cine.t * 5.0), 0) * 0.006
+	cine_cam.look_at(face + Vector3(0, -0.04 * sc, 0))
+	if autotest and cine.t > 1.6 and cine.t - dt <= 1.6:
+		for a in OS.get_cmdline_user_args():
+			if a.begins_with("--shot="):
+				get_viewport().get_texture().get_image().save_png(a.substr(7) + "_cine.png")
+	if cine.t > 0.8 and cine.t - dt <= 0.8:
+		cam.shake(0.3)
+		Input.vibrate_handheld(40)
 
 func summon(k: String, n: int) -> void:
 	for i in range(n):
@@ -310,7 +399,15 @@ func _physics_process(dt: float) -> void:
 		cam.yaw += dt * 0.12
 		cam.tick(dt, hero)
 		hero.body.loco(0, false, true)
+		_portrait(dt)
 		return
+	if not cine.is_empty():
+		ui.read()
+		_cine_tick(dt)
+		return
+	if cine_cam.current:
+		cam.cam.current = true
+		cine_light.light_energy = 0.0
 	var inp := ui.read()
 	if autotest:
 		_bot(inp)
@@ -351,6 +448,12 @@ func _physics_process(dt: float) -> void:
 
 func _bot(inp: Dictionary) -> void:
 	_frames += 1
+	if "--runtest" in OS.get_cmdline_user_args():
+		inp.move = Vector2(0, -1)
+		inp.atk = false
+		if _frames % 20 == 0:
+			print("run f=", _frames, " v=", snappedf(hero.vel.length(), 0.01), " clip=", hero.body.cur, " st=", hero.st)
+		return
 	var tg := nearest_enemy(hero.global_position, 50.0)
 	if tg:
 		var d := tg.global_position - hero.global_position
