@@ -155,7 +155,15 @@ def bracer(co, w):
         if W(w, "lowerarm_" + s, "lowerarm_twist_01_" + s) > 0.5 and 0.45 < t < 0.95:
             return True
     return False
-armor = [_shell("Cuirass", cuirass, 0.016, 0.006), _shell("Greaves", greave, 0.009, 0.004), _shell("Bracers", bracer, 0.008, 0.004)]
+z_belt = _rest("spine_01").z + 0.01
+z_kilt = (_rest("thigh_l").z + _rest("calf_l").z) * 0.5 + 0.06
+def kilt(co, w):
+    hip = W(w, "pelvis", "thigh_l", "thigh_r", "spine_01", "thigh_twist_01_l", "thigh_twist_01_r")
+    return hip > 0.5 and z_kilt < co.z < z_belt + 0.01
+def belt(co, w):
+    return W(w, "pelvis", "spine_01", "spine_02") > 0.5 and abs(co.z - z_belt) < 0.028
+armor = [_shell("Cuirass", cuirass, 0.016, 0.006), _shell("Greaves", greave, 0.009, 0.004), _shell("Bracers", bracer, 0.008, 0.004),
+         _shell("Kilt", kilt, 0.008, 0.003), _shell("Belt", belt, 0.016, 0.008)]
 for a_ in armor:
     a_.data.materials.clear(); m_ = bpy.data.materials.new(a_.name.lower()); a_.data.materials.append(m_)
 for o in list(bpy.data.objects):

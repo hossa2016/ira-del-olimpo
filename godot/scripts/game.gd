@@ -350,9 +350,14 @@ func _head_pos(n: Node) -> Vector3:
 		return n.heads[1].node.global_position
 	var b: Body = n.body
 	var i := b.skel.find_bone("Head")
+	var up := 0.08
+	if i < 0:
+		# esqueleto MakeHuman: el hueso "head" está en la base del cráneo; subir a los ojos
+		i = b.skel.find_bone("head")
+		up = 0.1
 	if i < 0:
 		return n.global_position + Vector3(0, 1.6, 0)
-	return (b.skel.global_transform * b.skel.get_bone_global_pose(i)).origin + Vector3(0, 0.08, 0) * b.scale.x
+	return (b.skel.global_transform * b.skel.get_bone_global_pose(i)).origin + Vector3(0, up, 0) * b.scale.x
 
 ## Presentación del jefe: cámara lenta hacia su rostro, franjas de cine y su nombre.
 func _boss_intro(e: Enemy) -> void:
@@ -777,15 +782,15 @@ func _ring(p: Vector3, radius: float, col: Color) -> void:
 	fire.initial_velocity_min = 1.5
 	fire.initial_velocity_max = 3.5
 	fire.gravity = Vector3(0, 2, 0)
-	fire.scale_amount_min = 1.5
-	fire.scale_amount_max = 3.0
+	fire.scale_amount_min = 0.6
+	fire.scale_amount_max = 1.3
 	var fg := Gradient.new()
 	fg.set_color(0, Color(1, 0.85, 0.5, 0.9))
 	fg.add_point(0.4, Color(col.r, col.g * 0.8, col.b * 0.5, 0.7))
 	fg.set_color(fg.get_point_count() - 1, Color(0.2, 0.08, 0.05, 0))
 	fire.color_ramp = fg
 	var fq := QuadMesh.new()
-	fq.size = Vector2(0.5, 0.7)
+	fq.size = Vector2(0.35, 0.55)
 	var fmat := StandardMaterial3D.new()
 	fmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	fmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA

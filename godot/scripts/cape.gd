@@ -86,7 +86,7 @@ func _physics_process(dt: float) -> void:
 		for i in range(W):
 			var k := j * W + i
 			var p := pts[k]
-			var v := (p - prev[k]) * 0.96
+			var v := (p - prev[k]) * 0.93
 			prev[k] = p
 			pts[k] = p + v + g + wv * (float(j) / H)
 	for j in range(W):
@@ -112,6 +112,10 @@ func _physics_process(dt: float) -> void:
 				pts[k] = p - fwd * (d - lim)
 			if pts[k].y < 0.03:
 				pts[k].y = 0.03
+			# la tela no sube por encima de los hombros (antes se disparaba hacia arriba al girar)
+			var top_y: float = sp.y - 0.04 * sc * float(k / W)
+			if pts[k].y > top_y:
+				pts[k].y = top_y
 	_rebuild()
 
 func _link(a: int, b: int, rest: float, pin_a: bool) -> void:

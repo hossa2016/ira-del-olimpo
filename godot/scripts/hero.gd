@@ -245,7 +245,7 @@ func physics_tick(dt: float, inp: Dictionary, cam_yaw: float) -> void:
 		body.look_clear()
 	if body.sword:
 		var on: bool = st == "atk" and body.pos_t() < cfg.get("end", 0.5)
-		trail.feed(body.sword.global_transform * Vector3(0, 0, 0.4), body.sword.global_transform * Vector3(0, 0, 0.72), on, Color(1.0, 0.55, 0.2) if cfg.has("ira") else Color(1.0, 0.92, 0.8))
+		trail.feed(body.sword.global_transform * Vector3(0, 0, 0.58), body.sword.global_transform * Vector3(0, 0, 0.72), on, Color(1.0, 0.55, 0.2) if cfg.has("ira") else Color(1.0, 0.92, 0.8))
 
 func _start_block() -> void:
 	st = "block"

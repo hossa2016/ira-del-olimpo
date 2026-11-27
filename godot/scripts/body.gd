@@ -54,13 +54,15 @@ func setup(o: Dictionary) -> void:
 	elif o.get("rag", true):
 		# taparrabos de tela vieja (los no-muertos ya no se ven en ropa interior)
 		var pv := _att("pelvis")
-		_mesh(pv, _cyl(0.2, 0.235, 0.24, 20), Mats.get_m("rag"), Vector3(0, -0.04, 0.01), Vector3.ZERO, Vector3(1.0, 1.0, 0.85))
-		for k in range(10):
+		if not mh:
+			_mesh(pv, _cyl(0.2, 0.235, 0.24, 20), Mats.get_m("rag"), Vector3(0, -0.04, 0.01), Vector3.ZERO, Vector3(1.0, 1.0, 0.85))
+		for k in range(0 if mh else 10):
 			var a := k / 10.0 * TAU + 0.3
 			var st := _mesh(pv, _box(0.09, 0.16 + (k % 3) * 0.04, 0.01), Mats.get_m("rag"), Vector3(sin(a) * 0.215, -0.2, cos(a) * 0.185 + 0.01))
 			st.rotation_order = EULER_ORDER_YXZ
 			st.rotation = Vector3(-0.08, a, (k % 2 - 0.5) * 0.15)
-		_mesh(pv, TorusMeshHelper.make(0.205, 0.015), Mats.get_m("leather"), Vector3(0, 0.07, 0.01), Vector3.ZERO, Vector3(1, 1, 0.85))
+		if not mh:
+			_mesh(pv, TorusMeshHelper.make(0.205, 0.015), Mats.get_m("leather"), Vector3(0, 0.07, 0.01), Vector3.ZERO, Vector3(1, 1, 0.85))
 	if o.get("shield", false):
 		_shield(metal, o.get("shield_face", "cloth"), o.get("shield_r", 0.42), o.get("emblem", "damon"))
 	match o.get("weapon", ""):
@@ -88,6 +90,7 @@ func setup(o: Dictionary) -> void:
 	if mh:
 		_convert_attachments()
 		_mh_eyes()
+		_mh_grip()
 	var sc: float = o.get("scale", 1.0)
 	scale = Vector3.ONE * sc
 	upright = o.get("upright", false)
@@ -151,7 +154,14 @@ func _setup_mh(o: Dictionary) -> void:
 				c.visible = arm_on
 			"Bracers":
 				c.material_override = Mats.get_m("leather")
-				c.visible = arm_on
+				c.visible = arm_on or o.get("bracers", false)
+			"Kilt":
+				# falda de tela ceñida al cuerpo (sustituye al cilindro rígido)
+				c.material_override = Mats.get_m("rag")
+				c.visible = not arm_on and o.get("rag", true)
+			"Belt":
+				c.material_override = Mats.get_m("leather")
+				c.visible = not arm_on and o.get("rag", true)
 			"Body":
 				c.material_override = m
 			_:
@@ -231,6 +241,21 @@ func _convert_attachments() -> void:
 				var t: Transform3D = c.transform
 				var pos_model: Vector3 = qg * t.origin - dq + dm
 				c.transform = Transform3D(conv * t.basis, mg.affine_inverse() * pos_model)
+
+## Dedos cerrados (agarran el arma): las animaciones no traen dedos y el reposo es la mano abierta
+static var grip_sign := 1.0
+func _mh_grip() -> void:
+	for sd in ["l", "r"]:
+		for f in ["index", "middle", "ring", "pinky"]:
+			for k in range(1, 4):
+				var i := skel.find_bone("%s_%02d_%s" % [f, k, sd])
+				if i >= 0:
+					var a: float = [0.0, 1.05, 1.25, 0.8][k] * grip_sign
+					skel.set_bone_pose_rotation(i, skel.get_bone_rest(i).basis.get_rotation_quaternion() * Quaternion(Vector3.RIGHT, a))
+		for k in [2, 3]:
+			var i := skel.find_bone("thumb_%02d_%s" % [k, sd])
+			if i >= 0:
+				skel.set_bone_pose_rotation(i, skel.get_bone_rest(i).basis.get_rotation_quaternion() * Quaternion(Vector3.RIGHT, 0.45 * grip_sign))
 
 func _mh_eyes() -> void:
 	var hd := _att("head")
