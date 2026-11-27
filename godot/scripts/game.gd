@@ -445,6 +445,7 @@ func _physics_process(dt: float) -> void:
 	var nw: int = W.waves.size()
 	var wt: String = W.name + " · " + ("Jefe" if wave >= nw else "Oleada %d/%d" % [wave, nw - 1])
 	ui.update_hud(hero, score, wt, boss if boss and boss.st != "dead" else null)
+	ui.threats = _threats() if state == "play" else []
 
 func _bot(inp: Dictionary) -> void:
 	_frames += 1
@@ -855,6 +856,34 @@ func sfx(n: String) -> void:
 
 func sfx_at(n: String, p: Vector3) -> void:
 	audio.play(n, p.distance_to(hero.global_position))
+
+## Enemigos fuera de la vista (detrás o a los lados): dirección en pantalla y si están atacando.
+func _threats() -> Array:
+	var out: Array = []
+	var c := cam.cam
+	var vp := get_viewport().get_visible_rect().size
+	var cb := c.global_transform.basis
+	for e in enemies:
+		if e.st == "dead" or e.st == "rise":
+			continue
+		var p: Vector3 = e.global_position + Vector3(0, 1.0 * e.sc, 0)
+		var on_screen := false
+		if not c.is_position_behind(p):
+			var sp := c.unproject_position(p)
+			on_screen = sp.x > vp.x * 0.04 and sp.x < vp.x * 0.96 and sp.y > vp.y * 0.06 and sp.y < vp.y * 0.94
+		if on_screen:
+			continue
+		var rel := cb.inverse() * (p - c.global_position)
+		var ang := atan2(rel.x, -rel.z)  # 0 = al frente, ±PI = detrás
+		var d: float = e.global_position.distance_to(hero.global_position)
+		var lvl := 0
+		if e.st == "atk":
+			lvl = 2 if A_unbl(e) else 1
+		out.append({"a": ang, "d": d, "lvl": lvl})
+	return out
+
+func A_unbl(e: Enemy) -> bool:
+	return e.A.get("unbl", false) or (e is Cerberus and e.mode in ["fire", "pounce"])
 
 ## Vuelve translúcido a quien se interpone entre la cámara y Damón.
 func _occlusion() -> void:

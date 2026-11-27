@@ -3,7 +3,7 @@ extends Node3D
 ## Cámara al hombro estilo God of War: giro por arrastre, seguimiento suave, choque con columnas y temblor.
 
 var yaw := PI
-var pitch := 0.24
+var pitch := 0.27
 var arm: SpringArm3D
 var cam: Camera3D
 var target: Node3D
@@ -13,6 +13,7 @@ var trauma := 0.0
 var noise := FastNoiseLite.new()
 var fov_add := 0.0
 var sprint_k := 0.0
+var crowd := 0.0
 var _fov_t := 0.0
 var kick_v := Vector3.ZERO
 var kick_p := Vector3.ZERO
@@ -53,6 +54,13 @@ func tick(dt: float, hero: Hero) -> void:
 	clock += dt
 	var vp := get_viewport().get_visible_rect().size
 	var portrait := vp.y > vp.x
+	# con muchos enemigos cerca, la cámara se aleja un poco más para ver el grupo
+	var near_n := 0
+	if hero.game:
+		for e in hero.game.enemies:
+			if e.st != "dead" and e.global_position.distance_to(hero.global_position) < 8.0:
+				near_n += 1
+	crowd = lerpf(crowd, clampf((near_n - 1) * 0.35, 0.0, 1.0), 1.0 - exp(-1.5 * dt))
 	# encuadre de combate: mantiene al jefe (o al enemigo que ataca) dentro del plano sin quitarle control al jugador
 	var g0 = hero.game
 	var focus: Node3D = null
@@ -85,10 +93,10 @@ func tick(dt: float, hero: Hero) -> void:
 	global_position = global_position.lerp(piv, 1.0 - exp(-10.0 * dt))
 	var p := pitch + (0.08 if portrait else 0.0)
 	rotation = Vector3(-p, yaw + PI, 0)
-	arm.spring_length = lerpf(arm.spring_length, (4.4 if portrait else 3.6) + big + sprint_k * 0.5, 1.0 - exp(-3.0 * dt))
+	arm.spring_length = lerpf(arm.spring_length, (5.2 if portrait else 4.5) + big + sprint_k * 0.5 + crowd, 1.0 - exp(-3.0 * dt))
 	fov_add = move_toward(fov_add, 0.0, dt * 18.0)
 	sprint_k = lerpf(sprint_k, 1.0 if hero.sprinting else 0.0, 1.0 - exp(-3.0 * dt))
-	cam.fov = (66.0 if portrait else 58.0) + fov_add + sprint_k * 7.0
+	cam.fov = (70.0 if portrait else 65.0) + fov_add + sprint_k * 6.0
 	# resorte para el empujón
 	kick_v += (-kick_p * 260.0 - kick_v * 22.0) * dt
 	kick_p += kick_v * dt

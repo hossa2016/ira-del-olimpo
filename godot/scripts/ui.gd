@@ -59,6 +59,7 @@ var boss_on := false
 var boss_name := ""
 var clock := 0.0
 var _press := {}
+var threats: Array = []
 
 func _ready() -> void:
 	font_b = load("res://assets/fonts/cinzel.woff2")
@@ -411,6 +412,7 @@ func _fill_bar(o: Vector2, w: float, h: float, v: float, ghost: float, c1: Color
 func _draw_hud() -> void:
 	if not playing:
 		return
+	_draw_threats()
 	var s := root.get_viewport_rect().size
 	var u := clampf(minf(s.x, s.y) / 420.0, 0.8, 1.6)
 	# medallón con perfil de casco corintio
@@ -465,6 +467,36 @@ func _draw_hud() -> void:
 		var tw := font_b.get_string_size(boss_name, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
 		hud.draw_string(font_b, Vector2((s.x - tw) / 2.0 + 1, o.y - 7 * u + 1), boss_name, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0, 0, 0, 0.8))
 		hud.draw_string(font_b, Vector2((s.x - tw) / 2.0, o.y - 7 * u), boss_name, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0.96, 0.84, 0.62))
+
+# ---------- indicadores de amenazas fuera de cámara ----------
+func _draw_threats() -> void:
+	if threats.is_empty():
+		return
+	var s := root.get_viewport_rect().size
+	var c := s * 0.5 + Vector2(0, s.y * 0.04)
+	var rx := s.x * 0.3
+	var ry := s.y * 0.34
+	for t in threats:
+		var a: float = t.a
+		var dirv := Vector2(sin(a), -cos(a))
+		var p := c + Vector2(dirv.x * rx, dirv.y * ry)
+		var near := clampf(1.0 - (float(t.d) - 2.0) / 12.0, 0.25, 1.0)
+		var col := Color(0.96, 0.9, 0.8)
+		var lvl: int = t.lvl
+		if lvl == 1:
+			col = Color(1.0, 0.62, 0.15)
+		elif lvl == 2:
+			col = Color(1.0, 0.15, 0.08)
+		var pulse := 1.0 if lvl == 0 else (0.75 + 0.25 * sin(clock * 18.0))
+		col.a = (0.35 + 0.55 * near) * pulse
+		var sz := (14.0 + 12.0 * near) * (1.25 if lvl > 0 else 1.0)
+		var n := Vector2(-dirv.y, dirv.x)
+		var tip := p + dirv * sz * 0.9
+		var pts := PackedVector2Array([tip, p + n * sz * 0.7, p - dirv * sz * 0.15, p - n * sz * 0.7])
+		hud.draw_colored_polygon(pts, col)
+		hud.draw_polyline(PackedVector2Array([pts[0], pts[1], pts[2], pts[3], pts[0]]), Color(0, 0, 0, col.a * 0.6), 1.5, true)
+		if lvl > 0:
+			hud.draw_arc(p, sz * 1.25, 0, TAU, 24, Color(col.r, col.g, col.b, col.a * 0.5), 2.0, true)
 
 # ---------- iconos de botones ----------
 func _icon(k: String, c: Vector2, r: float, col: Color) -> void:
