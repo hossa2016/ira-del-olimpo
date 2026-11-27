@@ -61,6 +61,8 @@ static func get_m(key: String) -> Material:
 			m.albedo_texture = load("res://assets/tex/fur_c.jpg"); m.albedo_color = Color(0.62, 0.45, 0.35)
 			m.normal_enabled = true; m.normal_texture = load("res://assets/tex/fur_n.jpg"); m.roughness = 0.9
 			m.uv1_triplanar = true; m.uv1_scale = Vector3.ONE * 3.0
+		"linen":
+			m.albedo_color = Color(0.82, 0.76, 0.64); m.roughness = 0.95
 		"gums":
 			m.albedo_color = Color(0.35, 0.06, 0.06); m.roughness = 0.35
 	_c[key] = m

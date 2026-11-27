@@ -2,11 +2,12 @@ class_name GameAudio
 extends Node
 ## Música con fundidos, ambiente por mundo, efectos con variación y narrador (voz del sistema Android).
 
-const VARIANTS := {"whoosh": 3, "hit": 3, "clang": 2}
+const VARIANTS := {"whoosh": 3, "hit": 3, "clang": 2, "step": 4, "flesh": 3}
 const VOL := {
 	"whoosh": -9.0, "hit": -3.0, "clang": -5.0, "parry": -2.0, "guard_break": -3.0, "boom": -2.0,
 	"roar": -2.0, "growl": -3.0, "bite": -4.0, "fire": -4.0, "warn": -8.0, "rise": -10.0,
 	"roll": -9.0, "hurt": -3.0, "click": -12.0, "ira": -1.0, "death": -6.0,
+	"step": -17.0, "flesh": -4.0, "sub": -5.0, "armor": -9.0, "bodyfall": -6.0,
 }
 
 var music_on := true
@@ -46,7 +47,7 @@ func _stream(n: String) -> AudioStream:
 	return s
 
 ## Efecto: dist = distancia al héroe para atenuar (0 = cerca).
-func play(n: String, dist := 0.0, pitch_var := 0.08) -> void:
+func play(n: String, dist := 0.0, pitch_var := 0.08, vol_add := 0.0, pitch := 1.0) -> void:
 	var key := n
 	if VARIANTS.has(n):
 		key = n + str(randi() % VARIANTS[n])
@@ -61,8 +62,8 @@ func play(n: String, dist := 0.0, pitch_var := 0.08) -> void:
 	if p == null:
 		p = _pool[randi() % _pool.size()]
 	p.stream = s
-	p.volume_db = VOL.get(n, -6.0) - clampf(dist - 3.0, 0.0, 20.0) * 0.8
-	p.pitch_scale = 1.0 + randf_range(-pitch_var, pitch_var)
+	p.volume_db = VOL.get(n, -6.0) + vol_add - clampf(dist - 3.0, 0.0, 20.0) * 0.8
+	p.pitch_scale = pitch * (1.0 + randf_range(-pitch_var, pitch_var))
 	p.play()
 
 func music(n: String, fade := 1.5) -> void:

@@ -281,7 +281,12 @@ func set_banner(t: String) -> void:
 	banner_t = 2.2
 
 func hurt_flash() -> void:
+	flash.color = Color(0.6, 0.1, 0.05, flash.color.a)
 	flash_v = 0.35
+
+func screen_flash(col: Color, a: float) -> void:
+	flash.color = Color(col.r, col.g, col.b, flash.color.a)
+	flash_v = a
 
 func update_hud(hero: Hero, score: int, wave_txt: String, boss: Enemy) -> void:
 	hp_bar.size.x = 222.0 * clampf(hero.hp / hero.max_hp, 0, 1)

@@ -10,6 +10,9 @@ var sword: Node3D
 var cur := ""
 var dropped: Node3D = null
 var crest_scale := 1.0
+var rec_p := Vector3.ZERO
+var rec_v := Vector3.ZERO
+var lean_x := 0.0
 
 func setup(o: Dictionary) -> void:
 	model = load("res://assets/models/hero.glb").instantiate()
@@ -128,11 +131,19 @@ func _bull_head() -> void:
 	ring = ring
 
 func _armor(metal: Material) -> void:
-	_mesh(_att("spine_03"), _cyl(0.16, 0.18, 0.42, 28), metal, Vector3(0, -0.03, 0), Vector3(0.22, 0, 0), Vector3(1.08, 1, 0.88))
+	# coraza musculada: dos valvas redondeadas (pecho y espalda) que siguen el torso, con hombreras de lino
+	var ch := _att("spine_03")
+	_mesh(ch, _sph(1.0), metal, Vector3(0, 0.15, 0.02), Vector3(0.12, 0, 0), Vector3(0.25, 0.24, 0.16))
+	_mesh(ch, _sph(1.0), metal, Vector3(0, -0.02, 0.015), Vector3(0.08, 0, 0), Vector3(0.215, 0.22, 0.15))
+	var lin := Mats.get_m("linen")
+	for s in [-1, 1]:
+		var sh := _att("upperarm_l" if s < 0 else "upperarm_r")
+		_mesh(sh, _sph(0.095, true), lin, Vector3(0, 0.03, 0), Vector3(0, 0, 0), Vector3(1.1, 0.9, 1.15))
+
 	var sk := Node3D.new()
 	sk.rotation = Vector3(-0.28, 0, 0)
 	_att("pelvis").add_child(sk)
-	_mesh(sk, TorusMeshHelper.make(0.2, 0.028), metal, Vector3(0, 0, 0.01), Vector3.ZERO, Vector3(1, 1, 0.82))
+	_mesh(sk, TorusMeshHelper.make(0.19, 0.016), metal, Vector3(0, 0, 0.01), Vector3.ZERO, Vector3(1, 1, 0.82))
 	for k in range(16):
 		var a := k / 16.0 * TAU
 		var st := _mesh(sk, _box(0.075, 0.3, 0.014), Mats.get_m("cloth" if k % 2 else "leather"), Vector3(sin(a) * 0.2, -0.17, cos(a) * 0.165 + 0.01))
@@ -248,6 +259,22 @@ func loco(speed: float, zombie := false, hero := false) -> void:
 		return
 	var clip := "Walk_Loop" if s < 1.9 else ("Jog_Fwd_Loop" if s < 3.8 else "Sprint_Loop")
 	play(clip, clampf(s / AnimLib.NAT[clip], 0.55, 1.7), 0.28)
+
+## Retroceso procedural: el cuerpo se sacude en la dirección del golpe sin interrumpir la animación
+## (útil en jefes, que no deben entrar en animación de dolor con cada corte).
+func recoil(dir_world: Vector3, amount: float) -> void:
+	var local := global_transform.basis.inverse() * dir_world
+	local.y = 0.0
+	if local.length() > 0.01:
+		rec_v += local.normalized() * amount * 3.2 / maxf(scale.x, 0.01)
+
+func _physics_process(dt: float) -> void:
+	if model == null:
+		return
+	rec_v += (-rec_p * 320.0 - rec_v * 20.0) * dt
+	rec_p += rec_v * dt
+	model.position = Vector3(rec_p.x, 0.0, rec_p.z)
+	model.rotation.x = lean_x + rec_p.z * 1.6
 
 func set_flash(on: bool, col := Color(0.5, 0.35, 0.22)) -> void:
 	skin_mat.emission_enabled = on

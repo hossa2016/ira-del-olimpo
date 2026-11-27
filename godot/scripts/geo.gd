@@ -86,7 +86,7 @@ static func _helm_pt(th: float, v: float) -> Vector3:
 		var k := (v - 0.42) / 0.58
 		var back := clampf(-cos(th), 0.0, 1.0)  # 1 detrás
 		var jaw := clampf(cos(th), 0.0, 1.0)    # 1 delante
-		r = 0.15 + back * k * k * 0.035 - jaw * sin(k * PI * 0.8) * 0.03 - (1.0 - back) * k * 0.012
+		r = 0.15 + back * k * k * 0.05 - jaw * sin(k * PI * 0.8) * 0.03 - (1.0 - back) * k * 0.012
 	var ax := 1.0
 	var az := 1.14
 	var fz := 0.012 if cos(th) > 0 else 0.0
@@ -98,7 +98,9 @@ static func _helm_open(th: float, v: float) -> bool:
 	var eye := y > -0.012 and y < 0.048 and a > 0.09 and a < 0.9 - (0.048 - y) * 3.5
 	var slit := y < -0.035 and a < 0.17 + (-0.035 - y) * 0.9
 	var join := y <= 0.0 and y >= -0.04 and a > 0.09 and a < 0.24
-	return eye or slit or join
+	# la nuca termina más arriba para no parecer un tubo desde atrás
+	var nape := a > 2.0 and y < -0.085 + (PI - a) * 0.02
+	return eye or slit or join or nape
 
 ## Penacho de crin sobre soporte: abanico en el plano sagital.
 static func crest(transverse := false) -> ArrayMesh:

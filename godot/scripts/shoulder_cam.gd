@@ -11,6 +11,10 @@ var drag_t := -9.0
 var clock := 0.0
 var trauma := 0.0
 var noise := FastNoiseLite.new()
+var fov_add := 0.0
+var _fov_t := 0.0
+var kick_v := Vector3.ZERO
+var kick_p := Vector3.ZERO
 
 func _ready() -> void:
 	arm = SpringArm3D.new()
@@ -35,6 +39,15 @@ func rotate_by(dx: float, dy: float) -> void:
 func shake(a: float) -> void:
 	trauma = minf(1.0, trauma + a)
 
+## Cambio breve de FOV: negativo = acercamiento (parada), positivo = apertura (Ira, explosiones).
+func punch(deg: float) -> void:
+	fov_add = deg
+
+## Empujón direccional de la cámara en la dirección del impacto (más físico que el temblor aleatorio).
+func kick(dir_world: Vector3, amount: float) -> void:
+	var local := cam.global_transform.basis.inverse() * dir_world
+	kick_v += Vector3(local.x, local.y, 0.0).normalized() * amount * 6.0 if local.length() > 0.01 else Vector3.ZERO
+
 func tick(dt: float, hero: Hero) -> void:
 	clock += dt
 	var vp := get_viewport().get_visible_rect().size
@@ -54,8 +67,13 @@ func tick(dt: float, hero: Hero) -> void:
 	var p := pitch + (0.08 if portrait else 0.0)
 	rotation = Vector3(-p, yaw + PI, 0)
 	arm.spring_length = lerpf(arm.spring_length, (4.4 if portrait else 3.6) + big, 1.0 - exp(-3.0 * dt))
-	cam.h_offset = 0.12 if portrait else 0.65
-	cam.fov = 66.0 if portrait else 58.0
+	fov_add = move_toward(fov_add, 0.0, dt * 18.0)
+	cam.fov = (66.0 if portrait else 58.0) + fov_add
+	# resorte para el empujón
+	kick_v += (-kick_p * 260.0 - kick_v * 22.0) * dt
+	kick_p += kick_v * dt
+	cam.h_offset = (0.12 if portrait else 0.65) + kick_p.x
+	cam.v_offset = kick_p.y
 	trauma = maxf(0.0, trauma - dt * 1.6)
 	var s := trauma * trauma
 	cam.rotation = Vector3(noise.get_noise_2d(clock * 25.0, 0.0) * 0.03 * s, noise.get_noise_2d(0.0, clock * 25.0) * 0.03 * s, noise.get_noise_2d(clock * 25.0, 50.0) * 0.02 * s)

@@ -435,6 +435,42 @@ def fx_death():
     y = np.sin(2 * np.pi * 60 * t) * np.exp(-t * 10) + lp(nz(n), 600) * np.exp(-t * 12) * 0.8
     return y / np.max(np.abs(y)) * 0.7
 
+def fx_step(i):
+    n = int(0.16 * SR)
+    t = np.arange(n) / SR
+    thump = np.sin(2 * np.pi * (70 + i * 9) * t) * np.exp(-t * 45)
+    grit = bp(nz(n), 1500 + i * 300, 6000) * np.exp(-t * (55 + i * 6)) * 0.45
+    y = thump + grit
+    return y / np.max(np.abs(y)) * 0.6
+
+def fx_flesh(i):
+    n = int(0.22 * SR)
+    t = np.arange(n) / SR
+    wet = bp(nz(n), 250 + i * 60, 1400) * np.exp(-t * 28)
+    smack = bp(nz(n), 1800, 5000) * np.exp(-t * 90) * 0.7
+    y = wet + smack
+    return y / np.max(np.abs(y)) * 0.9
+
+def fx_sub():
+    n = int(0.4 * SR)
+    t = np.arange(n) / SR
+    y = np.sin(2 * np.pi * np.cumsum(40 + 50 * np.exp(-t * 20)) / SR) * np.exp(-t * 9)
+    return y / np.max(np.abs(y)) * 0.95
+
+def fx_armor():
+    n = int(0.3 * SR)
+    t = np.arange(n) / SR
+    y = sum(np.sin(2 * np.pi * f * t + rng.random() * 6) * np.exp(-t * d) for f, d in [(1900, 30), (3150, 38), (4600, 45)])
+    y += bp(nz(n), 3000, 9000) * np.exp(-t * 70)
+    return y / np.max(np.abs(y)) * 0.6
+
+def fx_bodyfall():
+    n = int(0.6 * SR)
+    t = np.arange(n) / SR
+    y = np.sin(2 * np.pi * 55 * t) * np.exp(-t * 12) + lp(nz(n), 900) * np.exp(-t * 16) * 0.7
+    y += fx_armor()[: n] * 0.25 if n <= len(fx_armor()) else 0
+    return y / np.max(np.abs(y)) * 0.8
+
 # ---------------- ambientes ----------------
 def amb(name, dur=24.0):
     global rng
@@ -512,6 +548,13 @@ if __name__ == "__main__":
         save("click", fx_click(), 4)
         save("ira", fx_ira(), 4)
         save("death", fx_death(), 4)
+        for i in range(4):
+            save("step%d" % i, fx_step(i), 3)
+        for i in range(3):
+            save("flesh%d" % i, fx_flesh(i), 4)
+        save("sub", fx_sub(), 4)
+        save("armor", fx_armor(), 4)
+        save("bodyfall", fx_bodyfall(), 4)
         print("efectos ok")
     if what in ("all", "amb"):
         for a in ["tebas", "laberinto", "inframundo", "olimpo"]:

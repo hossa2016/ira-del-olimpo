@@ -30,6 +30,8 @@ var phase := 1
 var charge_dir := Vector3.ZERO
 var title := ""
 var flash_col := Color(0.5, 0.35, 0.22)
+var armored := false
+var step_acc := 0.0
 
 const SPEAR := {"clip": "Punch_Cross", "wind_spd": 0.32, "wind_until": 0.13, "spd": 1.1, "hits": [0.19], "end": 0.72, "range": 2.2, "trig": 2.0, "arc": 0.8, "stop": 1.5, "lunge": 2.2}
 const HOOK := {"clip": "Melee_Hook", "wind_spd": 0.3, "wind_until": 0.16, "spd": 1.0, "hits": [0.27], "end": 0.47, "range": 2.0, "trig": 1.8, "arc": 1.0, "stop": 1.3, "lunge": 2.6}
@@ -79,6 +81,7 @@ func setup(k: String, lv: float) -> void:
 	max_hp *= lv
 	hp = max_hp
 	A = attacks[0]
+	armored = o.get("armor", false) or o.get("shield", false)
 	var col := CollisionShape3D.new()
 	var cap := CapsuleShape3D.new()
 	cap.radius = r
@@ -168,6 +171,14 @@ func tick(dt: float, hero: Hero) -> void:
 		if st_t >= 0.4:
 			st = "move"
 			cd = maxf(cd, 0.5)
+	elif st == "down":
+		# derribado: cae, queda en el suelo y se levanta
+		if st_t >= 1.15 and body.cur != "LayToIdle":
+			body.play("LayToIdle", 1.15, 0.25, true)
+		if st_t >= 2.45:
+			st = "move"
+			cd = 0.8
+			body.play("Zombie_Idle_Loop" if zombie else "Idle_Loop", 1.0, 0.3)
 	elif st == "stun":
 		if st_t >= (1.0 if boss else 1.4):
 			st = "move"
@@ -187,6 +198,16 @@ func tick(dt: float, hero: Hero) -> void:
 	velocity.y = 0.0
 	move_and_slide()
 	position.y = 0.0
+	# pisadas pesadas de los gigantes: se oyen y se sienten
+	if sc > 1.4 and st != "dead":
+		step_acc += vel.length() * dt
+		if step_acc > 1.3 * sc:
+			step_acc = 0.0
+			var dh := global_position.distance_to(hero.global_position)
+			game.audio.play("step", dh, 0.05, 6.0, 0.55)
+			if dh < 9.0:
+				game.cam.shake(0.08)
+			game.vfx.dust(global_position)
 	var rr := Vector2(position.x, position.z).length()
 	if rr > Game.AR - 0.5:
 		position.x *= (Game.AR - 0.5) / rr
@@ -301,9 +322,10 @@ func hurt(amount: float, push: Vector3, heavy: bool, c := {}) -> bool:
 		return true
 	if guard_chance > 0.0 and st == "block" and c.has("bash"):
 		parried()
-	var mult := 1.5 if st == "stun" else 1.0
+	var mult := 1.5 if st == "stun" else (1.2 if st == "down" else 1.0)
 	hp -= amount * mult
-	kb = push * (0.15 if boss else 1.0)
+	kb = push * (0.15 if boss else (1.3 if heavy else 0.8))
+	body.recoil(push.normalized() if push.length() > 0.01 else Vector3.ZERO, 0.12 if boss else (0.35 if heavy else 0.22))
 	body.set_flash(true)
 	get_tree().create_timer(0.1).timeout.connect(func(): if is_instance_valid(body): body.set_flash(false))
 	if hp <= 0.0:
@@ -316,6 +338,10 @@ func hurt(amount: float, push: Vector3, heavy: bool, c := {}) -> bool:
 			face = atan2(-push.x, -push.z)
 			body.rotation.y = face
 		body.play("Death01", 1.2, 0.15, true)
+		get_tree().create_timer(0.7).timeout.connect(func():
+			if is_instance_valid(self):
+				game.sfx_at("bodyfall", global_position)
+				game.vfx.dust(global_position + Vector3(sin(face), 0, cos(face)) * -0.9 * sc, sc > 1.3))
 		get_tree().create_timer(0.45).timeout.connect(func(): if is_instance_valid(body): body.drop_weapon(game))
 		game.on_enemy_dead(self)
 		return false
@@ -325,15 +351,31 @@ func hurt(amount: float, push: Vector3, heavy: bool, c := {}) -> bool:
 		game.on_boss_phase(self)
 	poise += amount
 	var committed := st == "atk" and fast
-	if st == "stun":
+	var knock: bool = not boss and (c.has("ira") or (heavy and not c.has("bash") and float(c.get("kb", 0.0)) >= 7.0))
+	if st == "stun" or st == "down":
 		pass
+	elif knock:
+		poise = 0.0
+		if st == "atk":
+			game.release_token(self)
+		st = "down"
+		st_t = 0.0
+		if push.length() > 0.01:
+			face = atan2(-push.x, -push.z)
+		body.play("Death01", 1.25, 0.1, true)
+		get_tree().create_timer(0.55).timeout.connect(func():
+			if is_instance_valid(self) and st == "down":
+				game.vfx.dust(global_position + push.normalized() * 0.9, true)
+				game.sfx_at("bodyfall", global_position))
 	elif not boss and (heavy or (poise >= 20.0 and not committed)):
 		poise = 0.0
 		if st == "atk":
 			game.release_token(self)
 		st = "hurt"
 		st_t = 0.0
-		body.play("Hit_Chest" if randf() < 0.5 else "Hit_Head", 1.1, 0.18, true)
+		# reacción según la altura del golpe: cortes altos a la cabeza, el resto al pecho
+		var high: bool = c.get("clip", "") in ["Sword_Regular_B", "Sword_Dash"]
+		body.play("Hit_Head" if high else "Hit_Chest", 1.15, 0.1, true)
 	elif boss and poise >= 70.0 and st != "atk":
 		poise = 0.0
 		st = "hurt"

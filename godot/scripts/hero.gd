@@ -41,6 +41,8 @@ var clock := 0.0
 var blk_since := -9.0
 var block_anim_t := 0.0
 var trail: SwordTrail
+var step_acc := 0.0
+var lock_t = null
 
 func _ready() -> void:
 	var col := CollisionShape3D.new()
@@ -100,7 +102,11 @@ func physics_tick(dt: float, inp: Dictionary, cam_yaw: float) -> void:
 		vel = vel.lerp(Vector3.ZERO, 1.0 - exp(-6.0 * dt))
 	elif st == "roll":
 		var k := minf(1.0, st_t / 0.58)
-		vel = roll_dir * (9.5 * (1.0 - k * k) + 0.4)
+		# arranque explosivo, frenado al apoyar (sin deslizar al final)
+		vel = roll_dir * (9.0 * (1.0 - k * k * k) * (1.0 if k < 0.8 else 0.5) + 0.3)
+		if st_t > 0.42 and st_t - get_physics_process_delta_time() <= 0.42:
+			game.vfx.dust(global_position + roll_dir * 0.3)
+			game.sfx("step")
 		if inp.atk and st_t > 0.12:
 			_start_special(DASH, roll_dir, 1.0)
 		elif st_t >= 0.58:
@@ -112,7 +118,16 @@ func physics_tick(dt: float, inp: Dictionary, cam_yaw: float) -> void:
 			face = lerp_angle(face, atan2(wish.x, wish.z), 1.0 - exp(-8.0 * dt))
 		var f := Vector3(sin(face), 0, cos(face))
 		var lg: Array = cfg.lunge
-		vel = vel.lerp(f * (lg[2] if t >= lg[0] and t <= lg[1] else 0.0), 1.0 - exp(-14.0 * dt))
+		var lunge_v: float = lg[2] if t >= lg[0] and t <= lg[1] else 0.0
+		if lock_t and is_instance_valid(lock_t) and not cfg.has("ira"):
+			# avance "magnético": se detiene al llegar a distancia de golpe, sin atravesar al enemigo
+			var to: Vector3 = lock_t.global_position - global_position
+			to.y = 0
+			var gap: float = to.length() - lock_t.r - cfg.reach * 0.55
+			lunge_v = clampf(gap * 8.0, 0.0, lunge_v * 1.35) if lunge_v > 0.0 else 0.0
+			if t < cfg.hits[0]:
+				face = lerp_angle(face, atan2(to.x, to.z), 1.0 - exp(-12.0 * dt))
+		vel = vel.lerp(Vector3(sin(face), 0, cos(face)) * lunge_v, 1.0 - exp(-16.0 * dt))
 		if nh != null and t >= nh:
 			hit_i += 1
 			game.hero_hit(self, cfg, cfg.get("heavy", false) and hit_i == cfg.hits.size())
@@ -167,16 +182,29 @@ func physics_tick(dt: float, inp: Dictionary, cam_yaw: float) -> void:
 			_start_atk(wish, m)
 		else:
 			var ts := 0.0 if m < 0.15 else 1.3 + (m - 0.15) / 0.85 * 3.7
+			var fdir := Vector3(sin(face), 0, cos(face))
+			var align := clampf(fdir.dot(wish) * 0.5 + 0.5, 0.0, 1.0) if m > 0.15 else 1.0
+			# giro brusco a gran velocidad: frena para pivotar en lugar de girar en seco
+			ts *= lerpf(0.3, 1.0, align * align) if vel.length() > 2.0 else 1.0
 			var target := wish * ts
-			var acc := 13.0 if ts > vel.length() else 22.0
+			var acc := 11.0 if ts > vel.length() else 18.0
 			var dv := target - vel
 			if dv.length() > acc * dt:
 				dv = dv.normalized() * acc * dt
 			vel += dv
 			var sp := vel.length()
-			if sp > 0.3:
-				face = lerp_angle(face, atan2(vel.x, vel.z), 1.0 - exp(-(7.0 if sp < 2.0 else 10.0) * dt))
+			if m > 0.15:
+				var turn_rate := lerpf(11.0, 6.0, clampf(sp / 5.0, 0, 1))
+				face = lerp_angle(face, atan2(wish.x, wish.z), 1.0 - exp(-turn_rate * dt))
 			body.loco(sp, false, true)
+			# pasos: uno por zancada según la distancia recorrida
+			step_acc += sp * dt
+			var stride := 0.75 if sp < 2.0 else 1.25
+			if step_acc > stride:
+				step_acc = 0.0
+				game.audio.play("step", 0.0, 0.12, -4.0 if sp < 2.0 else 0.0)
+				if sp > 3.8:
+					game.vfx.dust(global_position)
 
 	kb = kb.lerp(Vector3.ZERO, 1.0 - exp(-6.0 * dt))
 	velocity = vel + kb
@@ -233,20 +261,28 @@ func _start_special(c: Dictionary, wish: Vector3, m: float) -> void:
 	game.sfx("whoosh")
 
 func _aim(wish: Vector3, m: float, rng: float) -> void:
+	lock_t = null
+	var tg = game.nearest_enemy(global_position, rng)
 	if m > 0.15:
 		face = atan2(wish.x, wish.z)
-	else:
-		var tg = game.nearest_enemy(global_position, rng)
+		# solo se fija al enemigo si está más o menos hacia donde apunta el joystick
 		if tg:
 			var d: Vector3 = tg.global_position - global_position
-			face = atan2(d.x, d.z)
+			d.y = 0
+			if d.normalized().dot(wish) > 0.6:
+				lock_t = tg
+	elif tg:
+		var d: Vector3 = tg.global_position - global_position
+		face = atan2(d.x, d.z)
+		lock_t = tg
 
 func _start_roll(wish: Vector3, m: float) -> void:
 	roll_dir = wish if m > 0.15 else Vector3(sin(face), 0, cos(face))
 	face = atan2(roll_dir.x, roll_dir.z)
 	st = "roll"
 	st_t = 0.0
-	inv = 0.45
+	inv = 0.42
+	game.vfx.dust(global_position)
 	roll_cd = 0.7
 	queued = false
 	body.play("Roll", 2.4, 0.08, true)
@@ -266,11 +302,13 @@ func take_hit(dmg: float, from: Vector3, src: Node = null, unblockable := false)
 			block_anim_t = 0.4
 			rage = minf(100.0, rage + 20.0)
 			kb = dn * 1.5
-			game.on_parry(self, src)
+			game.on_parry(self, src, dn)
 			return "parry"
 		guard -= dmg * 3.2
 		guard_t = 0.9
 		kb = dn * (3.0 + dmg * 0.1)
+		game.cam.kick(dn, 0.15)
+		body.recoil(dn, 0.15)
 		hp -= dmg * 0.1
 		hp_changed.emit()
 		if guard <= 0.0:
@@ -282,11 +320,13 @@ func take_hit(dmg: float, from: Vector3, src: Node = null, unblockable := false)
 		else:
 			body.play("Sword_Block", 1.8, 0.04, true)
 			block_anim_t = 0.35
-			game.on_block(self)
+			game.on_block(self, dn)
 		return "block"
 	hp -= dmg
 	inv = 0.7
 	kb = dn * (6.0 if not unblockable else 9.0)
+	game.cam.kick(dn, 0.25 if dmg < 20.0 else 0.45)
+	body.recoil(dn, 0.25)
 	face = atan2(-dn.x, -dn.z)
 	vel *= 0.2
 	hp_changed.emit()

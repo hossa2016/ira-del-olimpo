@@ -31,10 +31,14 @@ var autotest := false
 var _frames := 0
 var unlocked := 0
 var audio: GameAudio
+var vfx: Vfx
 
 func _ready() -> void:
 	audio = GameAudio.new()
 	add_child(audio)
+	vfx = Vfx.new()
+	add_child(vfx)
+	vfx.setup(self)
 	_environment()
 	world_root = Node3D.new()
 	add_child(world_root)
@@ -378,10 +382,21 @@ func nearest_enemy(p: Vector3, maxd: float) -> Enemy:
 			best = e
 	return best
 
+## Tabla de sensaciones por tipo de impacto: congelado (hitstop), temblor, empujón de cámara, vibración.
+const FEEL := {
+	"light": {"stop": 0.045, "shake": 0.16, "kick": 0.10, "vib": 10},
+	"heavy": {"stop": 0.085, "shake": 0.3, "kick": 0.2, "vib": 18},
+	"final": {"stop": 0.11, "shake": 0.42, "kick": 0.28, "vib": 26},
+	"ira": {"stop": 0.14, "shake": 0.9, "kick": 0.4, "vib": 60},
+}
+
 func hero_hit(h: Hero, c: Dictionary, final: bool) -> void:
 	var f := Vector3(sin(h.face), 0, cos(h.face))
 	var n := 0
 	var blocked := 0
+	var any_armor := false
+	var last_p := Vector3.ZERO
+	var last_dir := f
 	for e in enemies:
 		if e.st == "dead" or e.st == "rise":
 			continue
@@ -394,56 +409,104 @@ func hero_hit(h: Hero, c: Dictionary, final: bool) -> void:
 			continue
 		var dir := to.normalized() if d > 0.01 else f
 		var heavy: bool = final or c.get("heavy", false)
+		# punto de contacto: en la superficie del enemigo, a la altura del pecho
+		var hp_: Vector3 = e.global_position - dir * e.r * 0.8 + Vector3(0, 1.25 * e.sc, 0)
 		if e.hurt(c.dmg, dir * c.kb, heavy, c):
 			blocked += 1
-			sparks(e.global_position + Vector3(0, 1.2 * e.sc, 0) - dir * 0.4 * e.sc, Color(1, 0.8, 0.4))
+			vfx.sparks(hp_, -dir, Color(1, 0.8, 0.45), heavy)
 			continue
-		_blood(e.global_position + Vector3(0, 1.2 * e.sc, 0), dir)
 		n += 1
+		last_p = hp_
+		last_dir = dir
+		var arm: bool = e.armored and randf() < 0.4
+		any_armor = any_armor or arm
+		if arm:
+			vfx.sparks(hp_, -dir, Color(1, 0.75, 0.4))
+		if e is Cerberus or e.kind == "som":
+			vfx.flash(hp_, 0.5, Color(0.6, 0.9, 1.0) if e.kind == "som" else Color(1, 0.5, 0.2))
+		if e.kind != "som":
+			vfx.blood(hp_, dir, heavy)
+		else:
+			vfx.dust(e.global_position)
 	if n > 0:
-		sfx("hit")
-		hitstop = 0.1 if final else 0.05
-		cam.shake(0.45 if final else 0.25)
+		var kind := "ira" if c.has("ira") else ("final" if final else ("heavy" if c.get("heavy", false) else "light"))
+		var fe: Dictionary = FEEL[kind]
+		hitstop = fe.stop
+		cam.shake(fe.shake)
+		cam.kick(last_dir, fe.kick)
+		if kind == "final" or kind == "heavy":
+			cam.punch(-2.5)
+		vfx.flash(last_p, 0.45 if kind == "light" else 0.75)
+		vfx.light(last_p, Color(1, 0.7, 0.45), 1.5, 0.08)
+		# sonido en capas: carne + golpe grave + metal si había armadura
+		audio.play("flesh", 0.0, 0.1)
+		audio.play("hit", 0.0, 0.08, -4.0)
+		if kind != "light":
+			audio.play("sub", 0.0, 0.05)
+		if any_armor:
+			audio.play("armor", 0.0, 0.1)
 		h.rage = minf(100.0, h.rage + 4.0 * n)
-		Input.vibrate_handheld(12)
+		Input.vibrate_handheld(fe.vib)
 	elif blocked > 0:
-		hitstop = 0.04
-		cam.shake(0.15)
-		sfx("clang")
+		hitstop = 0.05
+		cam.shake(0.14)
+		cam.kick(-f, 0.12)
+		audio.play("clang", 0.0, 0.1)
+		Input.vibrate_handheld(8)
 
 func on_ira(h: Hero) -> void:
 	slowmo = 0.5
-	cam.shake(0.3)
-	ui.set_banner("¡Ira!")
+	cam.shake(0.25)
+	cam.punch(-4.0)
 	sfx("ira")
+	vfx.light(h.global_position + Vector3(0, 1.5, 0), Color(1, 0.5, 0.15), 3.0, 0.5)
 	get_tree().create_timer(0.45).timeout.connect(func():
-		_ring(h.global_position, 4.8, Color(1.0, 0.45, 0.1))
-		cam.shake(1.0)
-		Input.vibrate_handheld(60))
+		_ring(h.global_position, 4.8, Color(1.0, 0.42, 0.1))
+		vfx.scorch(h.global_position, 6.5)
+		for k in range(8):
+			var a := k / 8.0 * TAU
+			vfx.dust(h.global_position + Vector3(cos(a), 0, sin(a)) * 3.0, true)
+		cam.shake(FEEL.ira.shake)
+		cam.punch(9.0)
+		Input.vibrate_handheld(FEEL.ira.vib))
 
-func on_parry(h: Hero, src: Node) -> void:
+func on_parry(h: Hero, src: Node, dn := Vector3.ZERO) -> void:
+	var fw := Vector3(sin(h.face), 0, cos(h.face))
+	var p := h.global_position + Vector3(0, 1.3, 0) + fw * 0.55
 	hitstop = 0.14
 	slowmo = 0.45
-	cam.shake(0.35)
-	sparks(h.global_position + Vector3(0, 1.3, 0) + Vector3(sin(h.face), 0, cos(h.face)) * 0.5, Color(1, 0.9, 0.6), 34)
-	ui.set_banner("¡Parada!")
+	cam.shake(0.22)
+	cam.kick(-fw, 0.22)
+	cam.punch(-6.0)
+	vfx.sparks(p, fw, Color(1.0, 0.92, 0.7), true)
+	vfx.flash(p, 1.1, Color(1.0, 0.95, 0.8))
+	vfx.light(p, Color(1, 0.9, 0.7), 6.0, 0.25)
+	ui.screen_flash(Color(1, 0.95, 0.85), 0.16)
 	Input.vibrate_handheld(25)
 	if src and src.has_method("parried"):
 		src.parried()
-	sfx("parry")
+	audio.play("parry", 0.0, 0.04)
+	audio.play("sub", 0.0, 0.05, -3.0)
 
-func on_block(h: Hero) -> void:
-	sparks(h.global_position + Vector3(0, 1.25, 0) + Vector3(sin(h.face), 0, cos(h.face)) * 0.5, Color(1, 0.75, 0.35))
-	cam.shake(0.2)
-	hitstop = 0.04
+func on_block(h: Hero, dn := Vector3.ZERO) -> void:
+	var fw := Vector3(sin(h.face), 0, cos(h.face))
+	var p := h.global_position + Vector3(0, 1.25, 0) + fw * 0.5
+	vfx.sparks(p, fw, Color(1, 0.72, 0.35))
+	vfx.dust(h.global_position)
+	cam.shake(0.14)
+	cam.kick(dn, 0.14)
+	hitstop = 0.05
 	Input.vibrate_handheld(10)
-	sfx("clang")
+	audio.play("clang", 0.0, 0.1)
+	audio.play("step", 0.0, 0.1, 2.0, 0.7)
 
 func on_guard_break(h: Hero) -> void:
-	cam.shake(0.5)
-	ui.set_banner("Guardia rota")
+	cam.shake(0.45)
+	cam.punch(-3.0)
 	sfx("guard_break")
-	sparks(h.global_position + Vector3(0, 1.2, 0), Color(1, 0.6, 0.3), 26)
+	audio.play("sub", 0.0, 0.05)
+	vfx.sparks(h.global_position + Vector3(0, 1.2, 0), Vector3(sin(h.face), 0, cos(h.face)), Color(1, 0.55, 0.3), true)
+	ui.screen_flash(Color(0.6, 0.15, 0.05), 0.2)
 
 func telegraph(_e: Node) -> void:
 	sfx("warn")
@@ -467,6 +530,14 @@ func on_boss_phase(e: Enemy) -> void:
 func shockwave(p: Vector3, radius: float, dmg: float, unbl: bool, src: Node) -> void:
 	_ring(p, radius, Color(1.0, 0.55, 0.2) if not unbl else Color(1.0, 0.25, 0.08))
 	sfx("boom")
+	vfx.scorch(p, radius * 0.9)
+	for k in range(6):
+		var a := k / 6.0 * TAU
+		vfx.dust(p + Vector3(cos(a), 0, sin(a)) * radius * 0.6, true)
+	var dk := hero.global_position - p
+	dk.y = 0
+	if dk.length() < radius * 3.0:
+		cam.kick(dk.normalized() if dk.length() > 0.01 else Vector3.FORWARD, 0.3)
 	cam.shake(0.6)
 	var d := hero.global_position - p
 	d.y = 0
@@ -492,7 +563,8 @@ func on_hero_hurt() -> void:
 	ui.hurt_flash()
 	cam.shake(0.5)
 	Input.vibrate_handheld(30)
-	_blood(hero.global_position + Vector3(0, 1.3, 0), Vector3.UP)
+	vfx.blood(hero.global_position + Vector3(0, 1.3, 0), Vector3(randf() - 0.5, 0.3, randf() - 0.5))
+	audio.play("flesh", 0.0, 0.1, -3.0)
 
 func take_token(e: Enemy) -> bool:
 	tokens = tokens.filter(func(q): return is_instance_valid(q) and q.st == "atk")
@@ -507,7 +579,7 @@ func release_token(e: Enemy) -> void:
 # ---------------- efectos ----------------
 func _ring(p: Vector3, radius: float, col: Color) -> void:
 	var t := TorusMesh.new()
-	t.inner_radius = 0.85
+	t.inner_radius = 0.93
 	t.outer_radius = 1.0
 	t.rings = 48
 	t.ring_segments = 6
@@ -515,7 +587,7 @@ func _ring(p: Vector3, radius: float, col: Color) -> void:
 	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-	m.albedo_color = Color(col.r * 2.0, col.g * 2.0, col.b * 2.0, 0.9)
+	m.albedo_color = Color(col.r * 2.0, col.g * 1.6, col.b * 1.4, 0.55)
 	var mi := MeshInstance3D.new()
 	mi.mesh = t
 	mi.material_override = m
@@ -535,6 +607,44 @@ func _ring(p: Vector3, radius: float, col: Color) -> void:
 	tw.chain().tween_callback(func():
 		mi.queue_free()
 		l.queue_free())
+	# anillo de fuego que se levanta del suelo
+	var fire := CPUParticles3D.new()
+	fire.one_shot = true
+	fire.emitting = true
+	fire.amount = 70
+	fire.lifetime = 0.55
+	fire.explosiveness = 0.85
+	fire.emission_shape = CPUParticles3D.EMISSION_SHAPE_RING
+	fire.emission_ring_axis = Vector3.UP
+	fire.emission_ring_radius = radius * 0.75
+	fire.emission_ring_inner_radius = radius * 0.55
+	fire.emission_ring_height = 0.05
+	fire.direction = Vector3.UP
+	fire.spread = 15.0
+	fire.initial_velocity_min = 1.5
+	fire.initial_velocity_max = 3.5
+	fire.gravity = Vector3(0, 2, 0)
+	fire.scale_amount_min = 1.5
+	fire.scale_amount_max = 3.0
+	var fg := Gradient.new()
+	fg.set_color(0, Color(1, 0.85, 0.5, 0.9))
+	fg.add_point(0.4, Color(col.r, col.g * 0.8, col.b * 0.5, 0.7))
+	fg.set_color(fg.get_point_count() - 1, Color(0.2, 0.08, 0.05, 0))
+	fire.color_ramp = fg
+	var fq := QuadMesh.new()
+	fq.size = Vector2(0.5, 0.7)
+	var fmat := StandardMaterial3D.new()
+	fmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	fmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	fmat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	fmat.vertex_color_use_as_albedo = true
+	fmat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	fmat.albedo_texture = _glow_tex()
+	fq.material = fmat
+	fire.mesh = fq
+	fire.position = p + Vector3(0, 0.1, 0)
+	add_child(fire)
+	get_tree().create_timer(1.0).timeout.connect(fire.queue_free)
 	var dust := CPUParticles3D.new()
 	dust.one_shot = true
 	dust.emitting = true
