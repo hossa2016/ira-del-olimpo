@@ -200,6 +200,12 @@ for clip in plan:
     tgt.animation_data.action = act_out
     hip0 = None
     hip_last = None
+    # suelo real del clip: el pie más bajo durante todo el clip (en el BVH la cadera de reposo está a 0)
+    floor = 1e9
+    for i in range(n_out):
+        sf = (t0 + i / FPS) * SRC_FPS[kind]
+        sc.frame_set(int(math.floor(sf)), subframe=sf - math.floor(sf))
+        floor = min(floor, src.pose(S["lt"]).to_translation().z, src.pose(S["rt"]).to_translation().z)
     for i in range(n_out):
         ts = t0 + i / FPS
         sf = ts * SRC_FPS[kind]
@@ -241,7 +247,7 @@ for clip in plan:
                     if clip.get("inplace", True):
                         off.x = 0.0
                         off.y = 0.0
-                    off.z = (hip.z - rp("hips").z) * k
+                    off.z = ((hip.z - floor) - (rp("hips").z - s_foot)) * k
                     loc = b.matrix_local.to_translation() + TW.to_3x3().inverted() @ off
                 m = Matrix.Translation(loc) @ aq.to_matrix().to_4x4()
             pose_m[name] = m

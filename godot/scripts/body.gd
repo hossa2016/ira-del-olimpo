@@ -68,12 +68,16 @@ func setup(o: Dictionary) -> void:
 		"labrys":
 			_labrys()
 	if o.get("eyes", "") != "":
-		var hd := _att("Head")
 		var em: String = o.get("eyes")
-		var ez := 0.135 if o.get("bull", false) else 0.1
-		var ex := 0.075 if o.get("bull", false) else 0.033
-		for s in [-1, 1]:
-			_mesh(hd, _sph(0.017), Mats.get_m("glow_" + em), Vector3(s * ex, 0.085, ez))
+		if o.get("bull", false):
+			var hd := _att("Head")
+			for s in [-1, 1]:
+				_mesh(hd, _sph(0.017), Mats.get_m("glow_" + em), Vector3(s * 0.075, 0.085, 0.135))
+		else:
+			# los propios globos oculares brillan (antes eran discos pegados a la cara)
+			for c in skel.get_children():
+				if c is MeshInstance3D and String(c.name).begins_with("Eyes"):
+					c.material_override = Mats.get_m("glow_" + em)
 	if o.get("beard", false):
 		call_deferred("_beard")
 	if mh:
@@ -126,9 +130,19 @@ func _setup_mh(o: Dictionary) -> void:
 	m.backlight_enabled = true
 	m.backlight = Color(0.25, 0.08, 0.04)
 	skin_mat = m
+	var arm_on: bool = o.get("armor", false)
 	for c in skel.find_children("*", "MeshInstance3D", true, false):
-		c.material_override = m
 		c.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		match String(c.name):
+			"Cuirass", "Greaves":
+				# coraza y grebas moldeadas sobre el propio cuerpo
+				c.material_override = Mats.get_m(o.get("metal", "bronze"))
+				c.visible = arm_on
+			"Bracers":
+				c.material_override = Mats.get_m("leather")
+				c.visible = arm_on
+			_:
+				c.material_override = m
 	ap = model.find_child("AnimationPlayer", true, false)
 	# mismos nombres que la biblioteca antigua: los bucles llevan "_Loop"
 	var lib := AnimationLibrary.new()
@@ -311,10 +325,11 @@ func _armor(metal: Material) -> void:
 	var ch := _att("spine_03")
 	# medidas tomadas del esqueleto: spine_03 a 1,31 m, cuello a 1,52 m, cintura ~1,0 m
 	# una sola pieza (pecho y vientre) con cinturón; antes eran dos esferas
-	_mesh(ch, _sph(1.0), metal, Vector3(0, -0.035, 0.018), Vector3(-0.04, 0, 0), Vector3(0.205, 0.255, 0.152))
-	_mesh(ch, TorusMeshHelper.make(0.175, 0.014), metal, Vector3(0, -0.25, 0.01), Vector3(0.08, 0, 0), Vector3(1.0, 1.0, 0.8))
+	if not mh:
+		_mesh(ch, _sph(1.0), metal, Vector3(0, -0.035, 0.018), Vector3(-0.04, 0, 0), Vector3(0.205, 0.255, 0.152))
+		_mesh(ch, TorusMeshHelper.make(0.175, 0.014), metal, Vector3(0, -0.25, 0.01), Vector3(0.08, 0, 0), Vector3(1.0, 1.0, 0.8))
 	var lin := Mats.get_m("linen")
-	for s in [-1, 1]:
+	for s in ([] if mh else [-1, 1]):
 		var sh := _att("upperarm_l" if s < 0 else "upperarm_r")
 		_mesh(sh, _sph(0.095, true), lin, Vector3(0, 0.03, 0), Vector3(0, 0, 0), Vector3(1.1, 0.9, 1.15))
 
@@ -329,6 +344,8 @@ func _armor(metal: Material) -> void:
 		var st := _mesh(sk, _box(0.075, 0.3, 0.014), Mats.get_m("cloth" if k % 2 else "leather"), Vector3(sin(a) * 0.2, -0.17, cos(a) * 0.165 + 0.01))
 		st.rotation_order = EULER_ORDER_YXZ
 		st.rotation = Vector3(-0.16, a, 0)
+	if mh:
+		return
 	for n in ["calf_l", "calf_r"]:
 		_mesh(_att(n), _cyl(0.062, 0.05, 0.3, 16), metal, Vector3(0, 0.2, 0.015))
 	for n in ["lowerarm_l", "lowerarm_r"]:
