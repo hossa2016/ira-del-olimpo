@@ -16,6 +16,7 @@ var lean_x := 0.0
 var aim: SpineAim
 var upright := false
 var mh := false
+var shield_node: Node3D
 var model_y := 0.0
 static var _q_rest := {}
 
@@ -395,6 +396,7 @@ func _shield(metal: Material, face: String, r: float, emblem := "damon") -> void
 	var g := Node3D.new()
 	g.position = Vector3(-0.1, 0.12, 0)
 	_att("lowerarm_l").add_child(g)
+	shield_node = g
 	# aspis: cuenco poco profundo con borde ancho
 	var bw := _mesh(g, Geo.shield_bowl(r, r * 0.17), Mats.shield(emblem, r), Vector3(-0.01, 0, 0), Vector3(0, 0, PI / 2))
 	bw.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON

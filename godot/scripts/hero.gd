@@ -7,11 +7,12 @@ signal died
 signal hp_changed
 
 const COMBO := [
-	{"clip": "Sword_Regular_A", "speed": 1.05, "hits": [0.24], "end": 0.41, "lunge": [0.06, 0.26, 3.4], "reach": 2.1, "arc": 1.25, "dmg": 12.0, "kb": 3.0},
-	{"clip": "Sword_Regular_B", "speed": 1.05, "hits": [0.2], "end": 0.5, "lunge": [0.04, 0.22, 3.2], "reach": 2.1, "arc": 1.3, "dmg": 12.0, "kb": 4.0},
-	{"clip": "Sword_Regular_C", "speed": 1.2, "hits": [0.27, 0.65], "end": 1.05, "lunge": [0.12, 0.32, 3.6], "reach": 2.5, "arc": 1.9, "dmg": 15.0, "kb": 7.0, "heavy": true},
+	# ataques animados a mano (tools/mh/attacks.py): tajo diagonal, revés horizontal, golpe vertical con paso
+	{"clip": "Atk_A", "speed": 1.1, "hits": [0.37], "end": 0.62, "lunge": [0.12, 0.36, 3.4], "reach": 2.1, "arc": 1.3, "dmg": 12.0, "kb": 3.0},
+	{"clip": "Atk_B", "speed": 1.1, "hits": [0.33], "end": 0.6, "lunge": [0.1, 0.32, 3.2], "reach": 2.2, "arc": 1.45, "dmg": 12.0, "kb": 4.0},
+	{"clip": "Atk_C", "speed": 1.05, "hits": [0.47], "end": 1.0, "lunge": [0.3, 0.48, 4.2], "reach": 2.5, "arc": 1.2, "dmg": 22.0, "kb": 7.0, "heavy": true},
 ]
-const BASH := {"clip": "Shield_OneShot", "speed": 1.25, "hits": [0.1], "end": 0.42, "lunge": [0.0, 0.16, 4.0], "reach": 1.9, "arc": 1.1, "dmg": 5.0, "kb": 7.0, "heavy": true, "bash": true}
+const BASH := {"clip": "Atk_Bash", "speed": 1.15, "hits": [0.19], "end": 0.45, "lunge": [0.0, 0.16, 4.0], "reach": 1.9, "arc": 1.1, "dmg": 5.0, "kb": 7.0, "heavy": true, "bash": true}
 const DASH := {"clip": "Sword_Dash", "speed": 1.3, "hits": [0.33], "end": 0.78, "lunge": [0.04, 0.38, 10.0], "reach": 2.3, "arc": 0.9, "dmg": 20.0, "kb": 7.0, "heavy": true}
 const FINISH := {"clip": "Sword_Attack", "speed": 1.15, "hits": [0.4], "end": 0.9, "lunge": [0.04, 0.3, 4.5], "reach": 2.8, "arc": 1.2, "dmg": 999.0, "kb": 9.0, "heavy": true, "finish": true}
 const IRA := {"clip": "Sword_Attack", "speed": 1.0, "hits": [0.4], "end": 0.98, "lunge": [0.18, 0.38, 2.5], "reach": 4.6, "arc": 3.2, "dmg": 48.0, "kb": 12.0, "heavy": true, "ira": true}
