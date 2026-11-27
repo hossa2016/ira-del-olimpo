@@ -1,6 +1,7 @@
 class_name Hero
 extends CharacterBody3D
-## Damón: movimiento con inercia relativo a la cámara, combo de 3 cortes, voltereta, daño y muerte.
+## Damón: movimiento con inercia relativo a la cámara, combo de 3 cortes, voltereta,
+## escudo (bloqueo, parada perfecta, golpe de escudo), estocada tras voltereta y furia (Ira).
 
 signal died
 signal hp_changed
@@ -8,8 +9,12 @@ signal hp_changed
 const COMBO := [
 	{"clip": "Sword_Regular_A", "speed": 1.05, "hits": [0.24], "end": 0.41, "lunge": [0.06, 0.26, 3.4], "reach": 2.1, "arc": 1.25, "dmg": 12.0, "kb": 3.0},
 	{"clip": "Sword_Regular_B", "speed": 1.05, "hits": [0.2], "end": 0.5, "lunge": [0.04, 0.22, 3.2], "reach": 2.1, "arc": 1.3, "dmg": 12.0, "kb": 4.0},
-	{"clip": "Sword_Regular_C", "speed": 1.2, "hits": [0.27, 0.65], "end": 1.05, "lunge": [0.12, 0.32, 3.6], "reach": 2.5, "arc": 1.9, "dmg": 15.0, "kb": 7.0},
+	{"clip": "Sword_Regular_C", "speed": 1.2, "hits": [0.27, 0.65], "end": 1.05, "lunge": [0.12, 0.32, 3.6], "reach": 2.5, "arc": 1.9, "dmg": 15.0, "kb": 7.0, "heavy": true},
 ]
+const BASH := {"clip": "Shield_OneShot", "speed": 1.25, "hits": [0.1], "end": 0.42, "lunge": [0.0, 0.16, 4.0], "reach": 1.9, "arc": 1.1, "dmg": 5.0, "kb": 7.0, "heavy": true, "bash": true}
+const DASH := {"clip": "Sword_Dash", "speed": 1.3, "hits": [0.33], "end": 0.78, "lunge": [0.04, 0.38, 10.0], "reach": 2.3, "arc": 0.9, "dmg": 20.0, "kb": 7.0, "heavy": true}
+const IRA := {"clip": "Sword_Attack", "speed": 1.0, "hits": [0.4], "end": 0.98, "lunge": [0.18, 0.38, 2.5], "reach": 4.6, "arc": 3.2, "dmg": 48.0, "kb": 12.0, "heavy": true, "ira": true}
+const PARRY_WIN := 0.22
 
 var body: Body
 var game: Node
@@ -19,6 +24,8 @@ var kb := Vector3.ZERO
 var hp := 100.0
 var max_hp := 100.0
 var rage := 0.0
+var guard := 100.0
+var guard_t := 0.0
 var st := "loco"
 var st_t := 0.0
 var combo := 0
@@ -31,6 +38,8 @@ var roll_cd := 0.0
 var roll_dir := Vector3.ZERO
 var lean := 0.0
 var clock := 0.0
+var blk_since := -9.0
+var block_anim_t := 0.0
 
 func _ready() -> void:
 	var col := CollisionShape3D.new()
@@ -44,7 +53,7 @@ func _ready() -> void:
 	collision_mask = 1 | 4
 	body = Body.new()
 	add_child(body)
-	body.setup({"tint": Color(0.95, 0.82, 0.72), "armor": true, "shield": true, "weapon": "sword", "beard": true, "crest": "cloth"})
+	body.setup({"tint": Color(0.95, 0.82, 0.72), "armor": true, "shield": true, "weapon": "sword", "beard": true, "crest": "horse"})
 	body.rotation.y = face
 
 func reset_at(p: Vector3) -> void:
@@ -53,16 +62,23 @@ func reset_at(p: Vector3) -> void:
 	kb = Vector3.ZERO
 	hp = max_hp
 	rage = 0.0
+	guard = 100.0
 	st = "loco"
 	face = PI
 	body.play("Sword_Idle", 1.0, 0.0, true)
 	hp_changed.emit()
+
+func blocking() -> bool:
+	return st == "block"
 
 func physics_tick(dt: float, inp: Dictionary, cam_yaw: float) -> void:
 	clock += dt
 	st_t += dt
 	inv -= dt
 	roll_cd -= dt
+	guard_t -= dt
+	if guard_t <= 0.0 and st != "block":
+		guard = minf(100.0, guard + 30.0 * dt)
 	var mv: Vector2 = inp.move
 	var fwd := Vector3(sin(cam_yaw), 0, cos(cam_yaw))
 	var right := Vector3(-cos(cam_yaw), 0, sin(cam_yaw))
@@ -71,13 +87,20 @@ func physics_tick(dt: float, inp: Dictionary, cam_yaw: float) -> void:
 	if wish.length() > 0.01:
 		wish = wish.normalized()
 	var prev_face := face
+	var blk: bool = inp.get("blk", false)
+	if blk and blk_since < 0.0:
+		blk_since = clock
+	elif not blk:
+		blk_since = -9.0
 
 	if st == "dead":
 		vel = vel.lerp(Vector3.ZERO, 1.0 - exp(-6.0 * dt))
 	elif st == "roll":
 		var k := minf(1.0, st_t / 0.58)
 		vel = roll_dir * (9.5 * (1.0 - k * k) + 0.4)
-		if st_t >= 0.58:
+		if inp.atk and st_t > 0.12:
+			_start_special(DASH, roll_dir, 1.0)
+		elif st_t >= 0.58:
 			st = "loco"
 	elif st == "atk":
 		var t := body.pos_t()
@@ -89,25 +112,54 @@ func physics_tick(dt: float, inp: Dictionary, cam_yaw: float) -> void:
 		vel = vel.lerp(f * (lg[2] if t >= lg[0] and t <= lg[1] else 0.0), 1.0 - exp(-14.0 * dt))
 		if nh != null and t >= nh:
 			hit_i += 1
-			game.hero_hit(self, cfg, combo == 3 and hit_i == cfg.hits.size())
-		if inp.atk and t > cfg.hits[0] * 0.5:
+			game.hero_hit(self, cfg, cfg.get("heavy", false) and hit_i == cfg.hits.size())
+		if inp.atk and t > cfg.hits[0] * 0.5 and not cfg.has("ira"):
 			queued = true
-		if inp.roll and t > cfg.hits[0] and roll_cd <= 0.0:
+		var hits_done: bool = hit_i >= cfg.hits.size()
+		if inp.roll and t > cfg.hits[0] and roll_cd <= 0.0 and not cfg.has("ira"):
 			_start_roll(wish, m)
+		elif blk and hits_done and not cfg.has("ira"):
+			_start_block()
 		elif t >= cfg.end or body.done():
 			last_end = clock
-			if queued:
+			if queued and not cfg.has("bash"):
 				_start_atk(wish, m)
 			else:
+				queued = false
 				st = "loco"
+	elif st == "block":
+		block_anim_t -= dt
+		if block_anim_t <= 0.0:
+			body.play("Idle_Shield_Loop", 1.0, 0.15)
+		var tg = game.nearest_enemy(global_position, 7.0)
+		if tg:
+			var d: Vector3 = tg.global_position - global_position
+			face = lerp_angle(face, atan2(d.x, d.z), 1.0 - exp(-10.0 * dt))
+		elif m > 0.15:
+			face = lerp_angle(face, atan2(wish.x, wish.z), 1.0 - exp(-6.0 * dt))
+		vel = vel.lerp(wish * m * 1.1, 1.0 - exp(-10.0 * dt))
+		if inp.atk:
+			_start_special(BASH, Vector3(sin(face), 0, cos(face)), 1.0)
+		elif inp.roll and roll_cd <= 0.0:
+			_start_roll(wish, m)
+		elif not blk:
+			st = "loco"
+	elif st == "stun":
+		vel = vel.lerp(Vector3.ZERO, 1.0 - exp(-9.0 * dt))
+		if st_t >= 1.0:
+			st = "loco"
 	else:
 		vel = vel.lerp(Vector3.ZERO, 1.0 - exp(-9.0 * dt))
 		if st == "hurt" and st_t >= 0.35:
 			st = "loco"
 
 	if st == "loco":
-		if inp.roll and roll_cd <= 0.0:
+		if inp.get("ira", false) and rage >= 100.0:
+			_start_special(IRA, wish, m)
+		elif inp.roll and roll_cd <= 0.0:
 			_start_roll(wish, m)
+		elif blk:
+			_start_block()
 		elif inp.atk:
 			_start_atk(wish, m)
 		else:
@@ -135,18 +187,21 @@ func physics_tick(dt: float, inp: Dictionary, cam_yaw: float) -> void:
 		position.z *= k2
 	var da := wrapf(face - prev_face, -PI, PI)
 	var tl := clampf(-da / maxf(dt, 0.001) * 0.03 * minf(1.0, vel.length() / 3.0), -0.2, 0.2)
+	if st != "loco":
+		tl = 0.0
 	lean = lerpf(lean, tl, minf(1.0, dt * 8.0))
 	body.rotation = Vector3(0, face, 0)
 	body.model.rotation.z = lean
 
+func _start_block() -> void:
+	st = "block"
+	st_t = 0.0
+	queued = false
+	block_anim_t = 0.25
+	body.play("Sword_Block", 1.6, 0.08, true)
+
 func _start_atk(wish: Vector3, m: float) -> void:
-	if m > 0.15:
-		face = atan2(wish.x, wish.z)
-	else:
-		var tg = game.nearest_enemy(global_position, 4.5)
-		if tg:
-			var d: Vector3 = tg.global_position - global_position
-			face = atan2(d.x, d.z)
+	_aim(wish, m, 4.5)
 	combo = (combo % 3) + 1 if (queued or clock - last_end < 0.45) else 1
 	queued = false
 	cfg = COMBO[combo - 1]
@@ -155,6 +210,30 @@ func _start_atk(wish: Vector3, m: float) -> void:
 	hit_i = 0
 	body.play(cfg.clip, cfg.speed, 0.08, true)
 	game.sfx("whoosh")
+
+func _start_special(c: Dictionary, wish: Vector3, m: float) -> void:
+	_aim(wish, m, 6.0)
+	cfg = c
+	combo = 0
+	queued = false
+	st = "atk"
+	st_t = 0.0
+	hit_i = 0
+	if c.has("ira"):
+		rage = 0.0
+		inv = 1.0
+		game.on_ira(self)
+	body.play(c.clip, c.speed, 0.06, true)
+	game.sfx("whoosh")
+
+func _aim(wish: Vector3, m: float, rng: float) -> void:
+	if m > 0.15:
+		face = atan2(wish.x, wish.z)
+	else:
+		var tg = game.nearest_enemy(global_position, rng)
+		if tg:
+			var d: Vector3 = tg.global_position - global_position
+			face = atan2(d.x, d.z)
 
 func _start_roll(wish: Vector3, m: float) -> void:
 	roll_dir = wish if m > 0.15 else Vector3(sin(face), 0, cos(face))
@@ -166,16 +245,42 @@ func _start_roll(wish: Vector3, m: float) -> void:
 	queued = false
 	body.play("Roll", 2.4, 0.08, true)
 
-func take_hit(dmg: float, from: Vector3) -> void:
+## Devuelve "hit", "block", "parry" o "miss".
+func take_hit(dmg: float, from: Vector3, src: Node = null, unblockable := false) -> String:
 	if inv > 0.0 or st == "dead" or st == "roll":
-		return
-	hp -= dmg
-	inv = 0.7
+		return "miss"
 	var d := global_position - from
 	d.y = 0
-	if d.length() > 0.01:
-		kb = d.normalized() * 6.0
-		face = atan2(-d.x, -d.z)
+	var dn := d.normalized() if d.length() > 0.01 else -Vector3(sin(face), 0, cos(face))
+	var front := Vector3(sin(face), 0, cos(face)).dot(-dn) > 0.2
+	if st == "block" and front and not unblockable:
+		if clock - blk_since <= PARRY_WIN or st_t <= PARRY_WIN:
+			body.play("Shield_OneShot", 1.4, 0.04, true)
+			block_anim_t = 0.4
+			rage = minf(100.0, rage + 20.0)
+			kb = dn * 1.5
+			game.on_parry(self, src)
+			return "parry"
+		guard -= dmg * 3.2
+		guard_t = 0.9
+		kb = dn * (3.0 + dmg * 0.1)
+		hp -= dmg * 0.1
+		hp_changed.emit()
+		if guard <= 0.0:
+			guard = 0.0
+			st = "stun"
+			st_t = 0.0
+			body.play("Idle_Shield_Break", 1.0, 0.08, true)
+			game.on_guard_break(self)
+		else:
+			body.play("Sword_Block", 1.8, 0.04, true)
+			block_anim_t = 0.35
+			game.on_block(self)
+		return "block"
+	hp -= dmg
+	inv = 0.7
+	kb = dn * (6.0 if not unblockable else 9.0)
+	face = atan2(-dn.x, -dn.z)
 	vel *= 0.2
 	hp_changed.emit()
 	game.on_hero_hurt()
@@ -187,4 +292,8 @@ func take_hit(dmg: float, from: Vector3) -> void:
 	else:
 		st = "hurt"
 		st_t = 0.0
-		body.play("Hit_Chest" if randf() < 0.5 else "Hit_Head", 1.05, 0.12, true)
+		var heavy := dmg >= 20.0
+		body.play("Hit_Knockback" if heavy else ("Hit_Chest" if randf() < 0.5 else "Hit_Head"), 1.05, 0.12, true)
+		if heavy:
+			st_t = -0.35
+	return "hit"

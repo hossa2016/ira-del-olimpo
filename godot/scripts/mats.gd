@@ -33,12 +33,42 @@ static func get_m(key: String) -> Material:
 			m.albedo_color = Color(0.16, 0.1, 0.07); m.roughness = 0.9
 		"beard":
 			m.albedo_color = Color(0.12, 0.08, 0.05); m.roughness = 0.9
+		"gold":
+			m.albedo_color = Color(0.95, 0.7, 0.32); m.metallic = 1.0; m.roughness = 0.24
+		"horse":
+			m.albedo_color = Color(0.5, 0.08, 0.05); m.roughness = 0.95; m.cull_mode = BaseMaterial3D.CULL_DISABLED
+		"helm_bronze":
+			m.albedo_color = Color(0.7, 0.48, 0.25); m.metallic = 1.0; m.roughness = 0.34; m.cull_mode = BaseMaterial3D.CULL_DISABLED
+		"helm_patina":
+			m.albedo_color = Color(0.35, 0.39, 0.27); m.metallic = 0.75; m.roughness = 0.55; m.cull_mode = BaseMaterial3D.CULL_DISABLED
+		"helm_gold":
+			m.albedo_color = Color(0.95, 0.7, 0.32); m.metallic = 1.0; m.roughness = 0.22; m.cull_mode = BaseMaterial3D.CULL_DISABLED
+		"helm_dark":
+			m.albedo_color = Color(0.16, 0.14, 0.13); m.metallic = 0.9; m.roughness = 0.4; m.cull_mode = BaseMaterial3D.CULL_DISABLED
+		"glow_cyan":
+			m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED; m.albedo_color = Color(0.4, 1, 0.9)
+			m.emission_enabled = true; m.emission = Color(0.3, 1, 0.85); m.emission_energy_multiplier = 6.0
+		"glow_fire":
+			m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED; m.albedo_color = Color(1, 0.6, 0.15)
+			m.emission_enabled = true; m.emission = Color(1, 0.45, 0.08); m.emission_energy_multiplier = 8.0
+		"ivory":
+			m.albedo_color = Color(0.83, 0.77, 0.64); m.roughness = 0.45
+		"fur":
+			m.albedo_texture = load("res://assets/tex/fur_c.jpg"); m.albedo_color = Color(0.55, 0.45, 0.42)
+			m.normal_enabled = true; m.normal_texture = load("res://assets/tex/fur_n.jpg"); m.roughness = 0.95
+			m.uv1_triplanar = true; m.uv1_scale = Vector3.ONE * 1.6
+		"fur_bull":
+			m.albedo_texture = load("res://assets/tex/fur_c.jpg"); m.albedo_color = Color(0.62, 0.45, 0.35)
+			m.normal_enabled = true; m.normal_texture = load("res://assets/tex/fur_n.jpg"); m.roughness = 0.9
+			m.uv1_triplanar = true; m.uv1_scale = Vector3.ONE * 3.0
+		"gums":
+			m.albedo_color = Color(0.35, 0.06, 0.06); m.roughness = 0.35
 	_c[key] = m
 	return m
 
-static func skin(tint: Color, dark := false) -> StandardMaterial3D:
+static func skin(tint: Color, tex := "c") -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()
-	m.albedo_texture = load("res://assets/tex/body_d.jpg" if dark else "res://assets/tex/body_c.jpg")
+	m.albedo_texture = load("res://assets/tex/body_%s.jpg" % tex)
 	m.albedo_color = tint
 	m.normal_enabled = true
 	m.normal_texture = load("res://assets/tex/body_n.jpg")

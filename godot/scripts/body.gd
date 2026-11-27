@@ -13,7 +13,7 @@ func setup(o: Dictionary) -> void:
 	model = load("res://assets/models/hero.glb").instantiate()
 	add_child(model)
 	skel = model.find_child("Skeleton3D", true, false)
-	skin_mat = Mats.skin(o.get("tint", Color(1, 1, 1)), o.get("dark", false))
+	skin_mat = Mats.skin(o.get("tint", Color(1, 1, 1)), o.get("skin", "c"))
 	for c in skel.get_children():
 		if c is MeshInstance3D:
 			var n := String(c.name)
@@ -23,21 +23,30 @@ func setup(o: Dictionary) -> void:
 	model.add_child(ap)
 	ap.root_node = NodePath("..")
 	ap.add_animation_library("", AnimLib.get_lib())
-	var metal: Material = Mats.get_m(o.get("metal", "bronze"))
-	if o.get("helmet", true):
-		_helmet(o.get("crest", "cloth"), metal)
+	var mk: String = o.get("metal", "bronze")
+	var metal: Material = Mats.get_m(mk)
+	if o.get("bull", false):
+		_bull_head()
+	elif o.get("helmet", true):
+		_helmet(o.get("crest", "horse"), "helm_" + ("bronze" if mk == "bronze" else mk.replace("dark_bronze", "dark")))
 	if o.get("armor", false):
 		_armor(metal)
 	if o.get("shield", false):
-		_shield(metal)
-	if o.get("weapon", "") == "sword":
-		_sword(metal)
-	elif o.get("weapon", "") == "spear":
-		_spear()
-	if o.get("eyes", false):
+		_shield(metal, o.get("shield_face", "cloth"), o.get("shield_r", 0.42))
+	match o.get("weapon", ""):
+		"sword":
+			_sword(metal, o.get("blade", 1.0))
+		"spear":
+			_spear()
+		"labrys":
+			_labrys()
+	if o.get("eyes", "") != "":
 		var hd := _att("Head")
+		var em: String = o.get("eyes")
+		var ez := 0.135 if o.get("bull", false) else 0.1
+		var ex := 0.075 if o.get("bull", false) else 0.033
 		for s in [-1, 1]:
-			_mesh(hd, _sph(0.017), Mats.get_m("glow_red"), Vector3(s * 0.033, 0.085, 0.1))
+			_mesh(hd, _sph(0.017), Mats.get_m("glow_" + em), Vector3(s * ex, 0.085, ez))
 	if o.get("beard", false):
 		call_deferred("_beard")
 	var sc: float = o.get("scale", 1.0)
@@ -87,21 +96,31 @@ func _box(x: float, y: float, z: float) -> BoxMesh:
 	return m
 
 # ---------- piezas ----------
-func _helmet(crest: String, metal: Material) -> void:
+func _helmet(crest: String, hm: String) -> void:
 	var g := Node3D.new()
-	g.position = Vector3(0, 0.1, 0.012)
-	g.scale = Vector3.ONE * 1.12
+	g.position = Vector3(0, 0.07, -0.022)
+	g.scale = Vector3.ONE * 0.97
 	_att("Head").add_child(g)
-	_mesh(g, _sph(0.135, true), metal, Vector3(0, 0.02, 0), Vector3.ZERO, Vector3(1, 1.25, 1.15))
-	_mesh(g, _cyl(0.137, 0.15, 0.13, 24), metal, Vector3(0, -0.045, -0.01))
-	for s in [-1, 1]:
-		_mesh(g, _box(0.028, 0.15, 0.11), metal, Vector3(s * 0.098, -0.06, 0.085), Vector3(0, s * 0.42, 0))
-	_mesh(g, _box(0.026, 0.09, 0.022), metal, Vector3(0, -0.03, 0.155))
+	var helm := _mesh(g, Geo.corinthian_helmet(), Mats.get_m(hm))
+	helm.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	if crest != "":
-		var cm: Material = Mats.get_m(crest)
-		for i in range(9):
-			var a := PI * (0.12 + 0.76 * i / 8.0)
-			_mesh(g, _box(0.035, 0.12, 0.06), cm, Vector3(0, 0.12 + sin(a) * 0.1, cos(a) * 0.2 - 0.02), Vector3(-(a - PI / 2), 0, 0))
+		_mesh(g, Geo.crest(), Mats.get_m(crest))
+		_mesh(g, _box(0.02, 0.05, 0.32), Mats.get_m(hm), Vector3(0, 0.19, -0.01))
+
+func _bull_head() -> void:
+	var hd := _att("Head")
+	var fur := Mats.get_m("fur_bull")
+	_mesh(hd, _sph(0.17), fur, Vector3(0, 0.1, 0.03), Vector3.ZERO, Vector3(1.0, 1.08, 1.18))
+	_mesh(hd, _sph(0.11), fur, Vector3(0, 0.03, 0.2), Vector3(-0.35, 0, 0), Vector3(0.95, 0.85, 1.35))
+	_mesh(hd, _sph(0.075), Mats.get_m("black"), Vector3(0, 0.0, 0.32), Vector3.ZERO, Vector3(1.1, 0.75, 0.5))
+	_mesh(hd, _sph(0.16), fur, Vector3(0, -0.04, -0.02), Vector3.ZERO, Vector3(1.15, 0.9, 1.0))
+	for s in [-1, 1]:
+		var h := _mesh(hd, Geo.horn(0.42, 0.05, 1.6), Mats.get_m("ivory"), Vector3(s * 0.13, 0.2, 0.02))
+		h.scale = Vector3(s, 1, 1)
+		h.rotation = Vector3(0, s * -0.25, s * 0.15)
+		_mesh(hd, _box(0.12, 0.05, 0.03), fur, Vector3(s * 0.2, 0.12, -0.02), Vector3(0, 0, s * -0.4))
+	var ring := _mesh(hd, TorusMeshHelper.make(0.035, 0.007), Mats.get_m("gold"), Vector3(0, -0.04, 0.31), Vector3(PI / 2, 0, 0))
+	ring = ring
 
 func _armor(metal: Material) -> void:
 	_mesh(_att("spine_03"), _cyl(0.16, 0.18, 0.42, 28), metal, Vector3(0, -0.03, 0), Vector3(0.22, 0, 0), Vector3(1.08, 1, 0.88))
@@ -119,26 +138,33 @@ func _armor(metal: Material) -> void:
 	for n in ["lowerarm_l", "lowerarm_r"]:
 		_mesh(_att(n), _cyl(0.052, 0.045, 0.17, 16), Mats.get_m("leather"), Vector3(0, 0.15, 0))
 
-func _shield(metal: Material) -> void:
+func _shield(metal: Material, face: String, r: float) -> void:
 	var g := Node3D.new()
 	g.position = Vector3(-0.1, 0.12, 0)
 	_att("lowerarm_l").add_child(g)
-	_mesh(g, _cyl(0.42, 0.42, 0.045, 40), metal, Vector3.ZERO, Vector3(0, 0, PI / 2))
-	_mesh(g, TorusMeshHelper.make(0.42, 0.024), metal, Vector3.ZERO, Vector3(0, 0, PI / 2))
-	_mesh(g, _cyl(0.3, 0.3, 0.047, 40), Mats.get_m("cloth"), Vector3(-0.004, 0, 0), Vector3(0, 0, PI / 2))
-	_mesh(g, _sph(0.07), metal, Vector3(-0.03, 0, 0))
+	# aspis: cuenco poco profundo con borde ancho
+	var bowl := _sph(r, true)
+	_mesh(g, bowl, metal, Vector3(-0.01, 0, 0), Vector3(0, 0, PI / 2), Vector3(1, 0.16, 1))
+	_mesh(g, TorusMeshHelper.make(r, 0.026), metal, Vector3.ZERO, Vector3(0, 0, PI / 2))
+	_mesh(g, _cyl(r * 0.62, r * 0.62, 0.01, 40), Mats.get_m(face), Vector3(-0.027, 0, 0), Vector3(0, 0, PI / 2))
+	_mesh(g, _sph(r * 0.15), metal, Vector3(-0.035, 0, 0), Vector3.ZERO, Vector3(0.6, 1, 1))
 
-func _sword(metal: Material) -> void:
+func _sword(metal: Material, blade := 1.0) -> void:
 	sword = Node3D.new()
 	sword.position = Vector3(-0.02, 0.085, 0)
 	_att("hand_r").add_child(sword)
 	_mesh(sword, _cyl(0.018, 0.018, 0.13, 10), Mats.get_m("leather"), Vector3.ZERO, Vector3(PI / 2, 0, 0))
 	_mesh(sword, _box(0.12, 0.028, 0.03), metal, Vector3(0, 0, 0.075))
 	_mesh(sword, _sph(0.028), metal, Vector3(0, 0, -0.075))
-	_mesh(sword, _box(0.06, 0.012, 0.52), Mats.get_m("steel"), Vector3(0, 0, 0.35))
+	# xiphos: hoja en forma de hoja de laurel
+	var L := 0.52 * blade
+	for k in range(6):
+		var t := (k + 0.5) / 6.0
+		var w := 0.05 + 0.022 * sin(t * PI * 0.9 + 0.3)
+		_mesh(sword, _box(w, 0.012, L / 6.0 + 0.004), Mats.get_m("steel"), Vector3(0, 0, 0.09 + t * L))
 	var tip := PrismMesh.new()
-	tip.size = Vector3(0.06, 0.12, 0.012)
-	_mesh(sword, tip, Mats.get_m("steel"), Vector3(0, 0, 0.67), Vector3(PI / 2, 0, 0))
+	tip.size = Vector3(0.055, 0.12, 0.012)
+	_mesh(sword, tip, Mats.get_m("steel"), Vector3(0, 0, 0.09 + L + 0.06), Vector3(PI / 2, 0, 0))
 
 func _spear() -> void:
 	sword = Node3D.new()
@@ -147,6 +173,14 @@ func _spear() -> void:
 	_mesh(sword, _cyl(0.017, 0.017, 2.1, 8), Mats.get_m("wood"), Vector3(0, 0, 0.35), Vector3(PI / 2, 0, 0))
 	var cone := _cyl(0.0, 0.045, 0.3, 8)
 	_mesh(sword, cone, Mats.get_m("bronze"), Vector3(0, 0, 1.52), Vector3(PI / 2, 0, 0))
+
+func _labrys() -> void:
+	sword = Node3D.new()
+	sword.position = Vector3(-0.02, 0.085, -0.25)
+	_att("hand_r").add_child(sword)
+	_mesh(sword, _cyl(0.025, 0.025, 1.25, 8), Mats.get_m("wood"), Vector3(0, 0, 0.5), Vector3(PI / 2, 0, 0))
+	_mesh(sword, Geo.labrys_blade(), Mats.get_m("dark_bronze"), Vector3(0, 0, 1.0))
+	_mesh(sword, _cyl(0.04, 0.04, 0.12, 10), Mats.get_m("bronze"), Vector3(0, 0, 1.0), Vector3(PI / 2, 0, 0))
 
 func _beard() -> void:
 	var b: Node3D = load("res://assets/models/beard.glb").instantiate()
@@ -191,6 +225,7 @@ func loco(speed: float, zombie := false, hero := false) -> void:
 	var clip := "Walk_Loop" if s < 1.9 else ("Jog_Fwd_Loop" if s < 3.8 else "Sprint_Loop")
 	play(clip, clampf(s / AnimLib.NAT[clip], 0.55, 1.7), 0.28)
 
-func set_flash(on: bool) -> void:
+func set_flash(on: bool, col := Color(0.5, 0.35, 0.22)) -> void:
 	skin_mat.emission_enabled = on
-	skin_mat.emission = Color(0.5, 0.35, 0.22)
+	skin_mat.emission = col
+	skin_mat.emission_energy_multiplier = 1.0 if col.r < 0.9 else 1.6

@@ -3,7 +3,7 @@ extends Node3D
 ## Cámara al hombro estilo God of War: giro por arrastre, seguimiento suave, choque con columnas y temblor.
 
 var yaw := PI
-var pitch := 0.28
+var pitch := 0.24
 var arm: SpringArm3D
 var cam: Camera3D
 var target: Node3D
@@ -29,7 +29,7 @@ func _ready() -> void:
 
 func rotate_by(dx: float, dy: float) -> void:
 	yaw -= dx * 0.0075
-	pitch = clampf(pitch + dy * 0.004, 0.05, 0.75)
+	pitch = clampf(pitch + dy * 0.004, -0.02, 0.5)
 	drag_t = clock
 
 func shake(a: float) -> void:
@@ -44,13 +44,18 @@ func tick(dt: float, hero: Hero) -> void:
 		var diff := wrapf(want - yaw, -PI, PI)
 		if absf(diff) < 1.75:
 			yaw = lerp_angle(yaw, want, 1.0 - exp(-0.9 * dt * minf(1.0, hero.vel.length() / 4.0)))
-	var piv := hero.global_position + Vector3(0, 1.4 if portrait else 1.5, 0)
+	var piv := hero.global_position + Vector3(0, 1.45 if portrait else 1.5, 0)
+	# en peleas con jefes grandes la cámara se aleja un poco
+	var big := 0.0
+	var g = hero.game
+	if g and g.boss and is_instance_valid(g.boss) and g.boss.st != "dead":
+		big = clampf((g.boss.sc - 1.0) * 1.4, 0.0, 1.2)
 	global_position = global_position.lerp(piv, 1.0 - exp(-10.0 * dt))
-	var p := pitch + (0.18 if portrait else 0.0)
+	var p := pitch + (0.08 if portrait else 0.0)
 	rotation = Vector3(-p, yaw + PI, 0)
-	arm.spring_length = 5.4 if portrait else 3.7
-	cam.h_offset = 0.15 if portrait else 0.7
-	cam.fov = 70.0 if portrait else 58.0
+	arm.spring_length = lerpf(arm.spring_length, (4.4 if portrait else 3.6) + big, 1.0 - exp(-3.0 * dt))
+	cam.h_offset = 0.12 if portrait else 0.65
+	cam.fov = 66.0 if portrait else 58.0
 	trauma = maxf(0.0, trauma - dt * 1.6)
 	var s := trauma * trauma
 	cam.rotation = Vector3(noise.get_noise_2d(clock * 25.0, 0.0) * 0.03 * s, noise.get_noise_2d(0.0, clock * 25.0) * 0.03 * s, noise.get_noise_2d(clock * 25.0, 50.0) * 0.02 * s)
