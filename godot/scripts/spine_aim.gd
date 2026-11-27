@@ -13,6 +13,8 @@ var _bones: Array = []  # [idx, reparto]
 func setup(sk: Skeleton3D) -> void:
 	for pair in [["spine_02", 0.25], ["spine_03", 0.35], ["neck_01", 0.15], ["Head", 0.25]]:
 		var i := sk.find_bone(pair[0])
+		if i < 0 and pair[0] == "Head":
+			i = sk.find_bone("head")
 		if i >= 0:
 			_bones.append([i, pair[1]])
 

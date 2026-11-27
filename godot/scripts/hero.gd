@@ -58,7 +58,7 @@ func _ready() -> void:
 	collision_mask = 1 | 4
 	body = Body.new()
 	add_child(body)
-	body.setup({"tint": Color(0.95, 0.82, 0.72), "armor": true, "shield": true, "weapon": "sword", "beard": true, "crest": "horse", "crest_scale": 1.4, "bones": {"spine_03": 1.04}})
+	body.setup({"tint": Color(1, 1, 1), "armor": true, "shield": true, "weapon": "sword", "beard": false, "crest": "horse", "crest_scale": 1.4, "mh": "damon"})
 	trail = SwordTrail.new()
 	add_child(trail)
 	var cape := Cape.new()

@@ -15,21 +15,30 @@ var rec_v := Vector3.ZERO
 var lean_x := 0.0
 var aim: SpineAim
 var upright := false
+var mh := false
+var model_y := 0.0
+static var _q_rest := {}
+
+const MH_NAT := {"Walk_Loop": 1.36, "Jog_Fwd_Loop": 2.35, "Sprint_Loop": 3.23}
 
 func setup(o: Dictionary) -> void:
-	model = load("res://assets/models/hero.glb").instantiate()
-	add_child(model)
-	skel = model.find_child("Skeleton3D", true, false)
-	skin_mat = Mats.skin(o.get("tint", Color(1, 1, 1)), o.get("skin", "c"))
-	for c in skel.get_children():
-		if c is MeshInstance3D:
-			var n := String(c.name)
-			c.material_override = Mats.get_m("eye") if n.begins_with("Eyes") else (Mats.get_m("brow") if n.begins_with("Eyebrows") else skin_mat)
-			c.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-	ap = AnimationPlayer.new()
-	model.add_child(ap)
-	ap.root_node = NodePath("..")
-	ap.add_animation_library("", AnimLib.get_lib())
+	mh = o.get("mh", "") != ""
+	if mh:
+		_setup_mh(o)
+	else:
+		model = load("res://assets/models/hero.glb").instantiate()
+		add_child(model)
+		skel = model.find_child("Skeleton3D", true, false)
+		skin_mat = Mats.skin(o.get("tint", Color(1, 1, 1)), o.get("skin", "c"))
+		for c in skel.get_children():
+			if c is MeshInstance3D:
+				var n := String(c.name)
+				c.material_override = Mats.get_m("eye") if n.begins_with("Eyes") else (Mats.get_m("brow") if n.begins_with("Eyebrows") else skin_mat)
+				c.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		ap = AnimationPlayer.new()
+		model.add_child(ap)
+		ap.root_node = NodePath("..")
+		ap.add_animation_library("", AnimLib.get_lib())
 	crest_scale = o.get("crest_scale", 1.0)
 	var mk: String = o.get("metal", "bronze")
 	var metal: Material = Mats.get_m(mk)
@@ -67,6 +76,9 @@ func setup(o: Dictionary) -> void:
 			_mesh(hd, _sph(0.017), Mats.get_m("glow_" + em), Vector3(s * ex, 0.085, ez))
 	if o.get("beard", false):
 		call_deferred("_beard")
+	if mh:
+		_convert_attachments()
+		_mh_eyes()
 	var sc: float = o.get("scale", 1.0)
 	scale = Vector3.ONE * sc
 	upright = o.get("upright", false)
@@ -96,8 +108,130 @@ func look_toward(p: Vector3, w := 1.0) -> void:
 func look_clear() -> void:
 	aim.yaw = 0.0
 
+# ---------- cuerpo MakeHuman (piel real, animaciones de captura) ----------
+func _setup_mh(o: Dictionary) -> void:
+	model = load("res://assets/models/damon_mh.glb").instantiate()
+	add_child(model)
+	skel = model.find_child("Skeleton3D", true, false)
+	# pies en el suelo: el origen del esqueleto está en la cadera
+	model_y = -skel.get_bone_global_rest(skel.find_bone("ball_l")).origin.y + 0.035
+	model.position.y = model_y
+	var m := StandardMaterial3D.new()
+	m.albedo_texture = load("res://assets/tex/damon_skin.jpg")
+	m.albedo_color = o.get("tint", Color(1, 1, 1))
+	m.roughness = 0.58
+	m.rim_enabled = true
+	m.rim = 0.3
+	m.rim_tint = 0.6
+	m.backlight_enabled = true
+	m.backlight = Color(0.25, 0.08, 0.04)
+	skin_mat = m
+	for c in skel.find_children("*", "MeshInstance3D", true, false):
+		c.material_override = m
+		c.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	ap = model.find_child("AnimationPlayer", true, false)
+	# mismos nombres que la biblioteca antigua: los bucles llevan "_Loop"
+	var lib := AnimationLibrary.new()
+	for n in ap.get_animation_list():
+		var a: Animation = ap.get_animation(n).duplicate(true)
+		for i in range(a.get_track_count() - 1, -1, -1):
+			if a.track_get_type(i) == Animation.TYPE_SCALE_3D:
+				a.remove_track(i)
+		var out := String(n)
+		var looped := a.loop_mode != Animation.LOOP_NONE or out in ["Walk", "Jog_Fwd", "Sprint", "Idle", "Idle_Shield"]
+		if looped:
+			a.loop_mode = Animation.LOOP_LINEAR
+			if not out.ends_with("_Loop"):
+				out += "_Loop"
+		lib.add_animation(out, a)
+	for l in ap.get_animation_library_list():
+		ap.remove_animation_library(l)
+	ap.add_animation_library("", lib)
+
+## Las piezas de armadura se diseñaron sobre los huesos del modelo anterior: se trasladan al cuerpo
+## MakeHuman usando puntos anatómicos equivalentes (ojos, hombros, caderas) y conservando su orientación.
+const MH_EYE := Vector3(0.0293, 0.8181, 0.1274)
+static func _quat_rest() -> Dictionary:
+	if not _q_rest.is_empty():
+		return _q_rest
+	var q: Node = load("res://assets/models/hero.glb").instantiate()
+	var qs: Skeleton3D = q.find_child("Skeleton3D", true, false)
+	for i in qs.get_bone_count():
+		_q_rest[qs.get_bone_name(i)] = qs.get_bone_global_rest(i)
+	for c in qs.find_children("*", "MeshInstance3D", true, false):
+		if String(c.name).begins_with("Eyes"):
+			var bb: AABB = c.get_aabb()
+			_q_rest["_eyes"] = c.transform * bb.get_center()
+	q.free()
+	return _q_rest
+
+func _ref(bn: String, quat: bool) -> Vector3:
+	var qr := _quat_rest()
+	var g := func(n: String) -> Vector3:
+		if quat:
+			return qr["Head" if n == "head" else n].origin
+		return skel.get_bone_global_rest(skel.find_bone(n)).origin
+	match bn:
+		"head":
+			if quat:
+				var e: Vector3 = qr.get("_eyes", g.call("head"))
+				return Vector3(0, e.y, e.z)
+			return Vector3(0, MH_EYE.y, MH_EYE.z)
+		"spine_03", "spine_02":
+			# el torso de MakeHuman es más corto bajo los hombros: subir la coraza
+			return (g.call("upperarm_l") + g.call("upperarm_r")) * 0.5 + (Vector3.ZERO if quat else Vector3(0, 0.085, 0.01))
+		"pelvis":
+			return (g.call("thigh_l") + g.call("thigh_r")) * 0.5
+	return g.call(bn)
+
+func _convert_attachments() -> void:
+	var qr := _quat_rest()
+	for att in skel.get_children():
+		if not att is BoneAttachment3D:
+			continue
+		var bn: String = att.bone_name
+		var qn := "Head" if bn == "head" else bn
+		if not qr.has(qn):
+			continue
+		var qg: Transform3D = qr[qn]
+		var mg: Transform3D = skel.get_bone_global_rest(skel.find_bone(bn))
+		var bq: Basis = qg.basis.orthonormalized()
+		var bm: Basis = mg.basis.orthonormalized()
+		var conv: Basis = bm.inverse() * bq
+		var dq := _ref(bn, true)
+		var dm := _ref(bn, false)
+		for c in att.get_children():
+			if c is Node3D and not c.has_meta("mh_done"):
+				var t: Transform3D = c.transform
+				var pos_model: Vector3 = qg * t.origin - dq + dm
+				c.transform = Transform3D(conv * t.basis, mg.affine_inverse() * pos_model)
+
+func _mh_eyes() -> void:
+	var hd := _att("head")
+	var hb: Transform3D = skel.get_bone_global_rest(skel.find_bone("head"))
+	var white := StandardMaterial3D.new()
+	white.albedo_color = Color(0.92, 0.9, 0.86)
+	white.roughness = 0.08
+	var iris := StandardMaterial3D.new()
+	iris.albedo_color = Color(0.25, 0.16, 0.09)
+	iris.roughness = 0.1
+	var pupil := StandardMaterial3D.new()
+	pupil.albedo_color = Color(0.01, 0.01, 0.01)
+	pupil.roughness = 0.05
+	# posiciones de los ojos (de MakeHuman, Blender Z arriba -> Godot Y arriba)
+	for e in [MH_EYE, Vector3(-MH_EYE.x, MH_EYE.y, MH_EYE.z)]:
+		var g := Node3D.new()
+		hd.add_child(g)
+		g.transform = Transform3D(hb.basis.orthonormalized().inverse(), hb.affine_inverse() * e)
+		g.set_meta("mh_done", true)
+		_mesh(g, _sph(0.0156), white)
+		_mesh(g, _cyl(0.0062, 0.0062, 0.0012, 16), iris, Vector3(0, 0, 0.0150), Vector3(PI / 2, 0, 0))
+		_mesh(g, _cyl(0.0027, 0.0027, 0.0014, 12), pupil, Vector3(0, 0, 0.0153), Vector3(PI / 2, 0, 0))
+
 # ---------- utilidades ----------
 func _att(bone: String) -> BoneAttachment3D:
+	if mh and bone == "Head":
+		bone = "head"
 	var n := "att_" + bone
 	if skel.has_node(n):
 		return skel.get_node(n)
@@ -304,7 +438,8 @@ func loco(speed: float, zombie := false, hero := false) -> void:
 		play("Zombie_Walk_Fwd_Loop", clampf(s / 1.22, 0.6, 1.8), 0.3)
 		return
 	var clip := "Walk_Loop" if s < 1.9 else ("Jog_Fwd_Loop" if s < 3.8 else "Sprint_Loop")
-	play(clip, clampf(s / AnimLib.NAT[clip], 0.55, 1.7), 0.28)
+	var nat: float = MH_NAT[clip] if mh else AnimLib.NAT[clip]
+	play(clip, clampf(s / nat, 0.55, 2.1 if mh else 1.7), 0.28)
 
 ## Retroceso procedural: el cuerpo se sacude en la dirección del golpe sin interrumpir la animación
 ## (útil en jefes, que no deben entrar en animación de dolor con cada corte).
@@ -319,7 +454,7 @@ func _physics_process(dt: float) -> void:
 		return
 	rec_v += (-rec_p * 320.0 - rec_v * 20.0) * dt
 	rec_p += rec_v * dt
-	model.position = Vector3(rec_p.x, 0.0, rec_p.z)
+	model.position = Vector3(rec_p.x, model_y, rec_p.z)
 	model.rotation.x = lean_x + rec_p.z * 1.6
 
 func set_flash(on: bool, col := Color(0.5, 0.35, 0.22)) -> void:

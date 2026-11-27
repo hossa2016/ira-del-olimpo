@@ -1,0 +1,21 @@
+[
+ {"name": "Walk_Loop", "src": "bvh", "bvh": "/tmp/dltest/cmu/data/007/07_01.bvh", "start": 1.0833, "end": 2.1833, "loop": true},
+ {"name": "Jog_Fwd_Loop", "src": "bvh", "bvh": "/tmp/dltest/cmu/data/002/02_03.bvh", "start": 0.05, "end": 0.8, "loop": true},
+ {"name": "Sprint_Loop", "src": "bvh", "bvh": "/tmp/dltest/cmu/data/009/09_02.bvh", "start": 0.25, "end": 1.0, "loop": true},
+ {"name": "Idle_Loop", "src": "quat", "clip": "Idle_Loop", "loop": true},
+ {"name": "Sword_Idle", "src": "quat", "clip": "Sword_Idle"},
+ {"name": "Roll", "src": "quat", "clip": "Roll"},
+ {"name": "Sword_Regular_A", "src": "quat", "clip": "Sword_Regular_A"},
+ {"name": "Sword_Regular_B", "src": "quat", "clip": "Sword_Regular_B"},
+ {"name": "Sword_Regular_C", "src": "quat", "clip": "Sword_Regular_C"},
+ {"name": "Sword_Attack", "src": "quat", "clip": "Sword_Attack"},
+ {"name": "Sword_Dash", "src": "quat", "clip": "Sword_Dash"},
+ {"name": "Sword_Block", "src": "quat", "clip": "Sword_Block"},
+ {"name": "Idle_Shield_Loop", "src": "quat", "clip": "Idle_Shield_Loop", "loop": true},
+ {"name": "Idle_Shield_Break", "src": "quat", "clip": "Idle_Shield_Break"},
+ {"name": "Shield_OneShot", "src": "quat", "clip": "Shield_OneShot"},
+ {"name": "Hit_Chest", "src": "quat", "clip": "Hit_Chest"},
+ {"name": "Hit_Head", "src": "quat", "clip": "Hit_Head"},
+ {"name": "Hit_Knockback", "src": "quat", "clip": "Hit_Knockback"},
+ {"name": "Death01", "src": "quat", "clip": "Death01"}
+]
