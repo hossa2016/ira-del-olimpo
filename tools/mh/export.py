@@ -62,6 +62,44 @@ for act in list(bpy.data.actions):
         pb.keyframe_insert("location", frame=f)
     print("suelo", act.name, round(dz, 3))
 arm.animation_data.action = None
+# ---- moderar las estocadas exageradas (torso casi horizontal): enderezar cadera y columna,
+#      y mantener los pies donde estaban con IK de piernas; luego hornear ----
+TAME = {"Sword_Regular_C": 0.5, "Sword_Dash": 0.5, "Sword_Attack": 0.7, "Sword_Regular_A": 0.8, "Sword_Regular_B": 0.8}
+bpy.context.view_layer.objects.active = arm
+for act in list(bpy.data.actions):
+    f_ = TAME.get(act.name)
+    if f_ is None:
+        continue
+    arm.animation_data.action = act
+    f0, f1 = [int(x) for x in act.frame_range]
+    feet = {}
+    for f in range(f0, f1 + 1):
+        bpy.context.scene.frame_set(f)
+        feet[f] = {s_: arm.pose.bones["foot_" + s_].matrix.copy() for s_ in ("l", "r")}
+    tg = {}
+    for s_ in ("l", "r"):
+        e = bpy.data.objects.new("ikt_" + s_, None); bpy.context.collection.objects.link(e); e.parent = arm
+        for f in range(f0, f1 + 1):
+            e.matrix_parent_inverse.identity(); e.location = feet[f][s_].translation
+            e.keyframe_insert("location", frame=f)
+        tg[s_] = e
+    for f in range(f0, f1 + 1):
+        bpy.context.scene.frame_set(f)
+        for bn, k in (("pelvis", f_), ("spine_01", f_), ("spine_02", f_), ("spine_03", f_), ("neck_01", 0.85), ("head", 0.85)):
+            pb = arm.pose.bones[bn]
+            pb.rotation_quaternion = _mu.Quaternion().slerp(pb.rotation_quaternion, k)
+            pb.keyframe_insert("rotation_quaternion", frame=f)
+    cons = []
+    for s_ in ("l", "r"):
+        c = arm.pose.bones["calf_" + s_].constraints.new("IK"); c.target = tg[s_]; c.chain_count = 2; cons.append(c)
+    bpy.ops.object.mode_set(mode="POSE")
+    bpy.ops.pose.select_all(action="SELECT")
+    bpy.ops.nla.bake(frame_start=f0, frame_end=f1, only_selected=True, visual_keying=True, clear_constraints=True,
+                     use_current_action=True, bake_types={"POSE"})
+    bpy.ops.object.mode_set(mode="OBJECT")
+    for e in tg.values(): bpy.data.objects.remove(e)
+    print("moderado", act.name)
+arm.animation_data.action = None
 # ---- armadura moldeada sobre el cuerpo (coraza musculada, grebas, brazales) ----
 import mathutils
 def _shell(name, pick, push, thick):
