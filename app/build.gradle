@@ -1,0 +1,18 @@
+plugins { id 'com.android.application' }
+android {
+    namespace 'com.hossa.iradelolimpo'
+    compileSdk 34
+    defaultConfig {
+        applicationId "com.hossa.iradelolimpo"
+        minSdk 26
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+    }
+    buildTypes {
+        release { minifyEnabled false; signingConfig signingConfigs.debug }
+    }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+    aaptOptions { noCompress 'js', 'jpg', 'woff2', 'html' }
+}
+dependencies { implementation 'androidx.webkit:webkit:1.10.0' }
