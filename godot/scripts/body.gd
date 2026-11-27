@@ -140,6 +140,8 @@ func _armor(metal: Material) -> void:
 		var sh := _att("upperarm_l" if s < 0 else "upperarm_r")
 		_mesh(sh, _sph(0.095, true), lin, Vector3(0, 0.03, 0), Vector3(0, 0, 0), Vector3(1.1, 0.9, 1.15))
 
+	# quitón de lino bajo las tiras de cuero (tapa la ropa interior del modelo base)
+	_mesh(_att("pelvis"), _cyl(0.2, 0.225, 0.22, 24), Mats.get_m("chiton"), Vector3(0, -0.02, 0.01), Vector3.ZERO, Vector3(1.0, 1.0, 0.85))
 	var sk := Node3D.new()
 	sk.rotation = Vector3(-0.28, 0, 0)
 	_att("pelvis").add_child(sk)

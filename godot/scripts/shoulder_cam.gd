@@ -52,7 +52,25 @@ func tick(dt: float, hero: Hero) -> void:
 	clock += dt
 	var vp := get_viewport().get_visible_rect().size
 	var portrait := vp.y > vp.x
-	if clock - drag_t > 1.4 and hero.vel.length() > 1.5:
+	# encuadre de combate: mantiene al jefe (o al enemigo que ataca) dentro del plano sin quitarle control al jugador
+	var g0 = hero.game
+	var focus: Node3D = null
+	if g0 and g0.boss and is_instance_valid(g0.boss) and g0.boss.st != "dead":
+		focus = g0.boss
+	elif g0:
+		for e in g0.enemies:
+			if e.st == "atk" and e.global_position.distance_to(hero.global_position) < 7.0:
+				focus = e
+				break
+	if focus and clock - drag_t > 1.0:
+		var to: Vector3 = focus.global_position - hero.global_position
+		to.y = 0
+		if to.length() > 1.0:
+			var want_y := atan2(to.x, to.z)
+			var df := wrapf(want_y - yaw, -PI, PI)
+			if absf(df) > 0.45:
+				yaw += df * (1.0 - exp(-1.6 * dt)) * (absf(df) - 0.45) / absf(df)
+	elif clock - drag_t > 1.4 and hero.vel.length() > 1.5:
 		var want := atan2(hero.vel.x, hero.vel.z)
 		var diff := wrapf(want - yaw, -PI, PI)
 		if absf(diff) < 1.75:

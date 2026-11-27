@@ -138,6 +138,54 @@ def gen_pale(src):
     col = col * 0.8 + a * np.array([0.2, 0.17, 0.15])
     save(col, "body_p.jpg")
 
-gen_floor(); gen_stone(); gen_rock(); gen_fur()
+def gen_bronze():
+    """Bronce martillado: hoyuelos (normal), manchas de pátina y desgaste (color/rugosidad)."""
+    M = 512
+    r = np.random.default_rng(61)
+    yy, xx = np.mgrid[0:M, 0:M]
+    h = np.zeros((M, M))
+    for k in range(900):  # golpes de martillo (tileables)
+        cx, cy = r.uniform(0, M, 2)
+        rad = r.uniform(7, 18)
+        dx = (xx - cx + M / 2) % M - M / 2
+        dy = (yy - cy + M / 2) % M - M / 2
+        d2 = (dx * dx + dy * dy) / (rad * rad)
+        h -= np.exp(-d2 * 2.0) * r.uniform(0.4, 1.0)
+    def pn(beta, seed):
+        rr = np.random.default_rng(seed)
+        f = np.fft.fftfreq(M); fx, fy = np.meshgrid(f, f)
+        kk = np.sqrt(fx**2 + fy**2); kk[0, 0] = 1
+        z = np.real(np.fft.ifft2((rr.normal(size=(M, M)) + 1j * rr.normal(size=(M, M))) / kk**beta))
+        return (z - z.mean()) / z.std()
+    scratches = np.zeros((M, M))
+    for k in range(60):
+        x0, y0 = r.uniform(0, M, 2); a = r.uniform(0, np.pi); L = r.uniform(20, 120)
+        for t in np.linspace(0, L, int(L)):
+            x = int(x0 + np.cos(a) * t) % M; y = int(y0 + np.sin(a) * t) % M
+            scratches[y, x] = 1.0
+    h = h * 0.8 + pn(2.0, 62) * 0.15 - scratches * 0.6
+    normal_from_h(h, 1.4).save(os.path.join(OUT, "bronze_n.jpg"), quality=92)
+    blot = pn(1.6, 63)
+    patina = np.clip(blot * 0.5 - 0.4, 0, 1)
+    v = 0.86 + 0.08 * pn(1.2, 64) + 0.06 * (h - h.mean())
+    col = np.stack([v * 230, v * 230, v * 225], -1)  # se tiñe con albedo_color del material
+    col = col * (1 - patina[..., None] * 0.55) + np.array([110, 150, 120]) * patina[..., None] * 0.55
+    col = col * (1 - scratches[..., None] * 0.0) + scratches[..., None] * 255 * 0.0
+    save(col, "bronze_c.jpg")
+    rough = np.clip(0.36 + 0.09 * pn(1.4, 65) + patina * 0.3 - scratches * 0.1, 0.22, 0.85)
+    save(np.repeat((rough * 255)[..., None], 3, -1), "bronze_r.jpg")
+
+def gen_water():
+    M = 512
+    def pn(beta, seed):
+        rr = np.random.default_rng(seed)
+        f = np.fft.fftfreq(M); fx, fy = np.meshgrid(f, f)
+        kk = np.sqrt(fx**2 + fy**2); kk[0, 0] = 1
+        z = np.real(np.fft.ifft2((rr.normal(size=(M, M)) + 1j * rr.normal(size=(M, M))) / kk**beta))
+        return (z - z.mean()) / z.std()
+    h = pn(2.2, 71) * 0.7 + pn(1.6, 72) * 0.3
+    normal_from_h(h, 3.0).save(os.path.join(OUT, "water_n.jpg"), quality=92)
+
+gen_floor(); gen_stone(); gen_rock(); gen_fur(); gen_bronze(); gen_water()
 gen_pale(os.path.join(OUT, "body_c.jpg"))
 print("ok")

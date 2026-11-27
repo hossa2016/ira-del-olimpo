@@ -59,6 +59,9 @@ func _ready() -> void:
 	body.setup({"tint": Color(0.95, 0.82, 0.72), "armor": true, "shield": true, "weapon": "sword", "beard": true, "crest": "horse", "crest_scale": 1.4})
 	trail = SwordTrail.new()
 	add_child(trail)
+	var cape := Cape.new()
+	add_child(cape)
+	cape.setup(body, Color(0.68, 0.1, 0.06))
 	body.rotation.y = face
 
 func reset_at(p: Vector3) -> void:

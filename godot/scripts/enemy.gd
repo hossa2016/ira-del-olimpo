@@ -95,6 +95,10 @@ func setup(k: String, lv: float) -> void:
 	add_child(body)
 	o["scale"] = sc
 	body.setup(o)
+	if k == "ares":
+		var cape := Cape.new()
+		add_child(cape)
+		cape.setup(body, Color(0.45, 0.04, 0.03))
 	if zombie:
 		body.play("Zombie_Idle_Loop", 1.0, 0.0)
 		body.position.y = -2.5 * sc

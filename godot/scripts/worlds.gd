@@ -13,6 +13,7 @@ const LIST := [
 		"sky_top": Color(0.3, 0.45, 0.66), "sky_hor": Color(0.93, 0.72, 0.55), "gnd": Color(0.22, 0.3, 0.38),
 		"sun": Color(1.0, 0.84, 0.66), "sun_e": 1.7, "sun_rot": Vector3(-32, -145, 0), "amb": 0.7, "exp": 0.9,
 		"fog": Color(0.9, 0.72, 0.56), "fog_d": 0.0045, "fog_h": 0.06,
+		"hdri": "amanecer", "hdri_tint": Color(1.0, 0.9, 0.8), "clouds": 0.45, "cloud_col": Color(1.0, 0.88, 0.75), "cloud_shade": Color(0.55, 0.45, 0.48),
 	},
 	{
 		"id": "laberinto", "name": "Laberinto de Creta", "boss": "mino", "lv": 1.1,
@@ -23,6 +24,7 @@ const LIST := [
 		"sky_top": Color(0.05, 0.05, 0.09), "sky_hor": Color(0.34, 0.17, 0.1), "gnd": Color(0.05, 0.04, 0.04),
 		"sun": Color(0.8, 0.66, 0.85), "sun_e": 0.85, "sun_rot": Vector3(-55, 30, 0), "amb": 0.55, "exp": 1.1,
 		"fog": Color(0.3, 0.16, 0.1), "fog_d": 0.012, "fog_h": 0.12,
+		"hdri": "cantera", "hdri_tint": Color(0.5, 0.35, 0.28), "clouds": 0.55, "cloud_col": Color(0.4, 0.22, 0.16), "cloud_shade": Color(0.08, 0.06, 0.08),
 	},
 	{
 		"id": "inframundo", "name": "Inframundo", "boss": "cerb", "lv": 1.2,
@@ -33,6 +35,7 @@ const LIST := [
 		"sky_top": Color(0.04, 0.06, 0.09), "sky_hor": Color(0.12, 0.32, 0.3), "gnd": Color(0.02, 0.05, 0.05),
 		"sun": Color(0.6, 0.9, 0.85), "sun_e": 1.25, "sun_rot": Vector3(-60, 80, 0), "amb": 0.75, "exp": 1.25,
 		"fog": Color(0.1, 0.3, 0.27), "fog_d": 0.016, "fog_h": 0.12,
+		"hdri": "cantera", "hdri_tint": Color(0.25, 0.55, 0.5), "clouds": 0.6, "cloud_col": Color(0.12, 0.3, 0.28), "cloud_shade": Color(0.02, 0.05, 0.06),
 	},
 	{
 		"id": "olimpo", "name": "Olimpo", "boss": "ares", "lv": 1.3,
@@ -43,6 +46,7 @@ const LIST := [
 		"sky_top": Color(0.28, 0.5, 0.85), "sky_hor": Color(1.0, 0.86, 0.66), "gnd": Color(0.9, 0.85, 0.8),
 		"sun": Color(1.0, 0.92, 0.78), "sun_e": 2.0, "sun_rot": Vector3(-42, -120, 0), "amb": 0.85, "exp": 0.74,
 		"fog": Color(0.98, 0.9, 0.8), "fog_d": 0.004, "fog_h": 0.03,
+		"hdri": "amanecer", "hdri_tint": Color(1.0, 0.95, 0.88), "clouds": 0.35, "cloud_col": Color(1.0, 0.97, 0.92), "cloud_shade": Color(0.7, 0.72, 0.8),
 	},
 ]
 
@@ -266,6 +270,7 @@ static func fire_at(g: Game, parent: Node3D, pos: Vector3, flame: String, k: flo
 
 # ---------------- constructores de cada mundo ----------------
 static func build(g: Game, root: Node3D, id: String) -> void:
+	probe(root)
 	match id:
 		"tebas":
 			_tebas(g, root)
@@ -279,14 +284,27 @@ static func build(g: Game, root: Node3D, id: String) -> void:
 static func _sea(root: Node3D, col: Color, rough: float, metal: float, y := -9.0, emit := Color.BLACK) -> void:
 	var sea := PlaneMesh.new()
 	sea.size = Vector2(1500, 1500)
-	var m := StandardMaterial3D.new()
-	m.albedo_color = col
-	m.roughness = rough
-	m.metallic = metal
-	if emit != Color.BLACK:
-		m.emission_enabled = true
-		m.emission = emit
+	var m := ShaderMaterial.new()
+	m.shader = load("res://shaders/water.gdshader")
+	m.set_shader_parameter("deep", col)
+	m.set_shader_parameter("shallow", col.lightened(0.25))
+	m.set_shader_parameter("nmap", load("res://assets/tex/water_n.jpg"))
+	m.set_shader_parameter("roughness_v", clampf(rough, 0.04, 1.0))
+	m.set_shader_parameter("glow", emit)
 	put(root, sea, m, Vector3(0, y, 0))
+
+## Sonda de reflexión: el bronce y el mármol reflejan la arena real (columnas, fuego), no solo el cielo.
+static func probe(root: Node3D, h := 12.0) -> void:
+	var rp := ReflectionProbe.new()
+	rp.size = Vector3(AR * 2 + 12, h, AR * 2 + 12)
+	rp.position = Vector3(0, 1.8, 0)
+	rp.origin_offset = Vector3(0, 0, 0)
+	rp.box_projection = true
+	rp.update_mode = ReflectionProbe.UPDATE_ONCE
+	rp.intensity = 0.9
+	rp.max_distance = 120.0
+	rp.ambient_mode = ReflectionProbe.AMBIENT_DISABLED
+	root.add_child(rp)
 
 static func _tebas(g: Game, root: Node3D) -> void:
 	platform(root, floor_mat(0.17, Color(0.82, 0.74, 0.64)))

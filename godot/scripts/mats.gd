@@ -61,12 +61,29 @@ static func get_m(key: String) -> Material:
 			m.albedo_texture = load("res://assets/tex/fur_c.jpg"); m.albedo_color = Color(0.62, 0.45, 0.35)
 			m.normal_enabled = true; m.normal_texture = load("res://assets/tex/fur_n.jpg"); m.roughness = 0.9
 			m.uv1_triplanar = true; m.uv1_scale = Vector3.ONE * 3.0
+		"chiton":
+			m.albedo_color = Color(0.4, 0.07, 0.05); m.roughness = 0.95
 		"linen":
 			m.albedo_color = Color(0.82, 0.76, 0.64); m.roughness = 0.95
 		"gums":
 			m.albedo_color = Color(0.35, 0.06, 0.06); m.roughness = 0.35
+	if key in ["bronze", "dark_bronze", "patina", "gold", "steel", "helm_bronze", "helm_patina", "helm_gold", "helm_dark"]:
+		_hammered(m, key)
 	_c[key] = m
 	return m
+
+## Metal con textura martillada: hoyuelos, rayas y pátina (rompe el aspecto de plástico liso).
+static func _hammered(m: StandardMaterial3D, key: String) -> void:
+	m.albedo_texture = load("res://assets/tex/bronze_c.jpg")
+	m.normal_enabled = true
+	m.normal_texture = load("res://assets/tex/bronze_n.jpg")
+	m.normal_scale = 0.5 if key == "steel" else 0.9
+	m.roughness_texture = load("res://assets/tex/bronze_r.jpg")
+	m.roughness_texture_channel = BaseMaterial3D.TEXTURE_CHANNEL_RED
+	m.roughness = clampf(m.roughness * 2.2, 0.4, 1.0)
+	m.uv1_triplanar = true
+	m.uv1_scale = Vector3.ONE * (5.0 if key == "steel" else 3.5)
+	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
 
 static func skin(tint: Color, tex := "c") -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()
@@ -77,4 +94,10 @@ static func skin(tint: Color, tex := "c") -> StandardMaterial3D:
 	m.roughness_texture = load("res://assets/tex/body_r.jpg")
 	m.roughness_texture_channel = BaseMaterial3D.TEXTURE_CHANNEL_GREEN
 	m.roughness = 1.0
+	# luz de contorno y luz que atraviesa la piel: separa al personaje del fondo
+	m.rim_enabled = true
+	m.rim = 0.35
+	m.rim_tint = 0.65
+	m.backlight_enabled = true
+	m.backlight = Color(0.22, 0.07, 0.04)
 	return m

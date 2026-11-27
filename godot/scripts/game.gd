@@ -10,7 +10,7 @@ var cam: ShoulderCam
 var ui: GameUI
 var sun: DirectionalLight3D
 var env: Environment
-var sky_mat: ProceduralSkyMaterial
+var sky_mat: ShaderMaterial
 var world_root: Node3D
 var world_i := 0
 var W: Dictionary
@@ -93,11 +93,11 @@ func _environment() -> void:
 	var we := WorldEnvironment.new()
 	env = Environment.new()
 	var sky := Sky.new()
-	sky_mat = ProceduralSkyMaterial.new()
-	sky_mat.sky_curve = 0.12
-	sky_mat.sun_angle_max = 18.0
-	sky_mat.sun_curve = 0.08
+	sky_mat = ShaderMaterial.new()
+	sky_mat.shader = load("res://shaders/sky.gdshader")
 	sky.sky_material = sky_mat
+	sky.process_mode = Sky.PROCESS_MODE_QUALITY
+	sky.radiance_size = Sky.RADIANCE_SIZE_256
 	env.background_mode = Environment.BG_SKY
 	env.sky = sky
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
@@ -126,10 +126,14 @@ func _environment() -> void:
 	add_child(sun)
 
 func _apply_env(w: Dictionary) -> void:
-	sky_mat.sky_top_color = w.sky_top
-	sky_mat.sky_horizon_color = w.sky_hor
-	sky_mat.ground_horizon_color = w.sky_hor.darkened(0.15)
-	sky_mat.ground_bottom_color = w.gnd
+	sky_mat.set_shader_parameter("top_color", w.sky_top)
+	sky_mat.set_shader_parameter("horizon_color", w.sky_hor)
+	sky_mat.set_shader_parameter("ground_color", w.gnd)
+	sky_mat.set_shader_parameter("cloud_cover", w.clouds)
+	sky_mat.set_shader_parameter("cloud_color", w.cloud_col)
+	sky_mat.set_shader_parameter("cloud_shade", w.cloud_shade)
+	sky_mat.set_shader_parameter("hdri", load("res://assets/hdri/%s.hdr" % w.hdri))
+	sky_mat.set_shader_parameter("hdri_tint", w.hdri_tint)
 	env.ambient_light_energy = w.amb
 	env.tonemap_exposure = w.exp
 	env.fog_light_color = w.fog
