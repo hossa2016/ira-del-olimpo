@@ -71,6 +71,9 @@ func _ready() -> void:
 	ui.retry_pressed.connect(func(): _start_world(world_i, false))
 	ui.story_done.connect(_on_story_done)
 	ui.toggle_pressed.connect(_on_toggle)
+	ui.process_mode = Node.PROCESS_MODE_ALWAYS
+	ui.pause_pressed.connect(_on_pause)
+	ui.pause_action.connect(_on_pause_action)
 	_load()
 	audio.set_music(audio.music_on)
 	ui.set_toggles(audio.music_on, audio.voice_on)
@@ -200,6 +203,28 @@ func _on_toggle(which: String) -> void:
 			audio.say("Narrador activado.")
 	ui.set_toggles(audio.music_on, audio.voice_on)
 	_save()
+
+func _on_pause() -> void:
+	if state != "play" and state != "boss":
+		return
+	sfx("click")
+	get_tree().paused = true
+	ui.show_pause(true)
+
+func _on_pause_action(which: String) -> void:
+	sfx("click")
+	get_tree().paused = false
+	ui.show_pause(false)
+	match which:
+		"restart":
+			_clear_enemies()
+			_start_world(world_i, false)
+		"menu":
+			_clear_enemies()
+			hero.reset_at(Vector3(0, 0, 3))
+			state = "menu"
+			audio.music("menu")
+			ui.show_menu(unlocked > 0, LIST_NAME(unlocked))
 
 func _on_play() -> void:
 	sfx("click")
@@ -508,6 +533,8 @@ func hero_hit(h: Hero, c: Dictionary, final: bool) -> void:
 	for e in enemies:
 		if e.st == "dead" or e.st == "rise":
 			continue
+		if c.has("finish") and e != h.lock_t:
+			continue
 		var to: Vector3 = e.global_position - h.global_position
 		to.y = 0
 		var d := to.length()
@@ -534,6 +561,9 @@ func hero_hit(h: Hero, c: Dictionary, final: bool) -> void:
 			vfx.flash(hp_, 0.5, Color(0.6, 0.9, 1.0) if e.kind == "som" else Color(1, 0.5, 0.2))
 		if e.kind != "som":
 			vfx.blood(hp_, dir, heavy)
+			if c.has("finish"):
+				vfx.blood(hp_ + Vector3(0, 0.15, 0), dir.rotated(Vector3.UP, 0.4), true)
+				vfx.blood(hp_ - Vector3(0, 0.2, 0), -dir, true)
 		else:
 			vfx.dust(e.global_position)
 	if n > 0:
@@ -561,6 +591,21 @@ func hero_hit(h: Hero, c: Dictionary, final: bool) -> void:
 		cam.kick(-f, 0.12)
 		audio.play("clang", 0.0, 0.1)
 		Input.vibrate_handheld(8)
+
+## Remate: cámara lenta, acercamiento y golpe seco
+func on_finish_start(h: Hero, e: Enemy) -> void:
+	slowmo = 0.55
+	cam.punch(-6.0)
+	sfx("rise")
+	if e.st != "stun" and e.st != "down":
+		e.st = "stun"
+		e.st_t = 0.0
+	get_tree().create_timer(0.32).timeout.connect(func():
+		cam.shake(0.45)
+		audio.play("boom", 0.0, 0.05, -2.0)
+		audio.play("sub", 0.0, 0.05)
+		ui.screen_flash(Color(0.6, 0.05, 0.02), 0.35)
+		score += 150)
 
 func on_ira(h: Hero) -> void:
 	slowmo = 0.5
@@ -904,3 +949,11 @@ func _occlusion() -> void:
 		if near < 1.6 * e.sc:
 			f = maxf(f, 0.8)
 		e.set_fade(f)
+
+func _notification(what: int) -> void:
+	# botón atrás de Android o salir de la app: pausar en vez de cerrar
+	if what == NOTIFICATION_WM_GO_BACK_REQUEST or what == NOTIFICATION_APPLICATION_FOCUS_OUT:
+		if state == "play" and not get_tree().paused:
+			_on_pause()
+		elif what == NOTIFICATION_WM_GO_BACK_REQUEST and state == "menu":
+			get_tree().quit()

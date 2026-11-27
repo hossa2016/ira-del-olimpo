@@ -56,21 +56,21 @@ func setup(k: String, lv: float) -> void:
 		"esp":
 			max_hp = 32.0; attacks = [SPEAR]
 			var tints := [Color(0.92, 0.95, 0.9), Color(0.85, 0.9, 0.84), Color(0.95, 0.94, 0.88)]
-			o = {"tint": tints[randi() % 3], "skin": "p", "metal": "patina", "crest": "" if randf() < 0.65 else "black", "weapon": "spear", "eyes": "red",
+			o = {"tint": tints[randi() % 3], "skin": "p", "metal": "patina", "crest": "" if randf() < 0.65 else "black", "weapon": "spear", "eyes": "red", "mh": "esparto",
 				"bones": {"spine_03": randf_range(0.93, 1.0), "Head": randf_range(0.97, 1.04)}}
 		"lab":
 			max_hp = 38.0; speed = 2.0; dmg = 9.0; attacks = [HOOK]
-			o = {"tint": Color(0.86, 0.8, 0.72), "skin": "p", "metal": "dark_bronze", "crest": "", "weapon": "sword", "eyes": "red", "armor": true}
+			o = {"tint": Color(0.86, 0.8, 0.72), "skin": "p", "metal": "dark_bronze", "crest": "", "weapon": "sword", "eyes": "red", "armor": true, "mh": "esparto"}
 		"som":
 			max_hp = 30.0; speed = 2.3; dmg = 11.0; attacks = [SCRATCH]
-			o = {"tint": Color(0.55, 0.66, 0.75), "skin": "p", "helmet": false, "eyes": "cyan"}
+			o = {"tint": Color(0.55, 0.66, 0.75), "skin": "p", "helmet": false, "eyes": "cyan", "mh": "esparto"}
 		"hop":
 			max_hp = 46.0; speed = 2.1; dmg = 11.0; attacks = [SPEAR]; zombie = false; guard_chance = 0.7
-			o = {"tint": Color(0.95, 0.82, 0.72), "metal": "gold", "crest": "horse", "weapon": "spear", "shield": true, "shield_face": "cloth", "armor": true, "eyes": "", "helm": "corinthian", "emblem": "ares"}
+			o = {"tint": Color(0.95, 0.82, 0.72), "metal": "gold", "crest": "horse", "weapon": "spear", "shield": true, "shield_face": "cloth", "armor": true, "eyes": "", "helm": "corinthian", "emblem": "ares", "mh": "damon"}
 		"gig":
 			sc = 1.6; boss = true; max_hp = 260.0; speed = 1.9; dmg = 18.0; r = 0.75; attacks = [GIG]
 			title = "Esparto Gigante"
-			o = {"tint": Color(0.9, 0.93, 0.88), "skin": "p", "metal": "patina", "crest": "horse", "weapon": "spear", "eyes": "red", "upright": true,
+			o = {"tint": Color(0.9, 0.93, 0.88), "skin": "p", "metal": "patina", "crest": "horse", "weapon": "spear", "eyes": "red", "upright": true, "mh": "esparto",
 				"bones": {"spine_03": 1.1, "Head": 0.88, "hand_l": 1.2, "hand_r": 1.2, "thigh_l": 1.04, "thigh_r": 1.04}}
 		"mino":
 			sc = 1.75; boss = true; max_hp = 420.0; speed = 2.6; dmg = 17.0; r = 0.8; zombie = false
@@ -82,7 +82,7 @@ func setup(k: String, lv: float) -> void:
 			sc = 1.38; boss = true; max_hp = 480.0; speed = 3.0; dmg = 13.0; r = 0.62; zombie = false; guard_chance = 0.45
 			attacks = [A_COMBO, A_DASH]
 			title = "Ares, dios de la guerra"
-			o = {"tint": Color(1.0, 0.82, 0.74), "metal": "gold", "crest": "horse", "crest_scale": 1.4, "weapon": "sword", "blade": 1.35, "shield": true, "shield_face": "horse", "emblem": "ares", "armor": true, "eyes": "fire", "beard": true,
+			o = {"tint": Color(1.0, 0.93, 0.88), "metal": "gold", "crest": "horse", "crest_scale": 1.4, "weapon": "sword", "blade": 1.35, "shield": true, "shield_face": "horse", "emblem": "ares", "armor": true, "eyes": "fire", "beard": true, "mh": "ares",
 				"bones": {"spine_03": 1.08, "Head": 0.95}}
 	max_hp *= lv
 	hp = max_hp

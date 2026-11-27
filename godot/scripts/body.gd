@@ -19,7 +19,10 @@ var mh := false
 var model_y := 0.0
 static var _q_rest := {}
 
-const MH_NAT := {"Walk_Loop": 1.36, "Jog_Fwd_Loop": 2.35, "Sprint_Loop": 3.23}
+var mh_name := "damon"
+var mh_eye := Vector3(0.0293, 0.8181, 0.1274)
+var mh_nat: Dictionary = {}
+var glow_eyes := ""
 
 func setup(o: Dictionary) -> void:
 	mh = o.get("mh", "") != ""
@@ -73,12 +76,14 @@ func setup(o: Dictionary) -> void:
 			var hd := _att("Head")
 			for s in [-1, 1]:
 				_mesh(hd, _sph(0.017), Mats.get_m("glow_" + em), Vector3(s * 0.075, 0.085, 0.135))
+		elif mh:
+			glow_eyes = em
 		else:
 			# los propios globos oculares brillan (antes eran discos pegados a la cara)
 			for c in skel.get_children():
 				if c is MeshInstance3D and String(c.name).begins_with("Eyes"):
 					c.material_override = Mats.get_m("glow_" + em)
-	if o.get("beard", false):
+	if o.get("beard", false) and not mh:
 		call_deferred("_beard")
 	if mh:
 		_convert_attachments()
@@ -90,6 +95,8 @@ func setup(o: Dictionary) -> void:
 	var props: Dictionary = o.get("bones", {})
 	for bn in props.keys():
 		var bi := skel.find_bone(bn)
+		if bi < 0 and bn == "Head":
+			bi = skel.find_bone("head")
 		if bi >= 0:
 			skel.set_bone_pose_scale(bi, Vector3.ONE * float(props[bn]))
 	aim = SpineAim.new()
@@ -114,14 +121,18 @@ func look_clear() -> void:
 
 # ---------- cuerpo MakeHuman (piel real, animaciones de captura) ----------
 func _setup_mh(o: Dictionary) -> void:
-	model = load("res://assets/models/damon_mh.glb").instantiate()
+	mh_name = o.get("mh")
+	var dat: Dictionary = MHData.BODIES[mh_name]
+	mh_eye = dat.eye
+	mh_nat = dat.nat
+	model = load("res://assets/models/%s_mh.glb" % mh_name).instantiate()
 	add_child(model)
 	skel = model.find_child("Skeleton3D", true, false)
 	# pies en el suelo: el origen del esqueleto está en la cadera
 	model_y = -skel.get_bone_global_rest(skel.find_bone("ball_l")).origin.y + 0.035
 	model.position.y = model_y
 	var m := StandardMaterial3D.new()
-	m.albedo_texture = load("res://assets/tex/damon_skin.jpg")
+	m.albedo_texture = load("res://assets/tex/%s_skin.jpg" % mh_name)
 	m.albedo_color = o.get("tint", Color(1, 1, 1))
 	m.roughness = 0.58
 	m.rim_enabled = true
@@ -141,8 +152,10 @@ func _setup_mh(o: Dictionary) -> void:
 			"Bracers":
 				c.material_override = Mats.get_m("leather")
 				c.visible = arm_on
-			_:
+			"Body":
 				c.material_override = m
+			_:
+				c.visible = false
 	ap = model.find_child("AnimationPlayer", true, false)
 	# mismos nombres que la biblioteca antigua: los bucles llevan "_Loop"
 	var lib := AnimationLibrary.new()
@@ -164,7 +177,6 @@ func _setup_mh(o: Dictionary) -> void:
 
 ## Las piezas de armadura se diseñaron sobre los huesos del modelo anterior: se trasladan al cuerpo
 ## MakeHuman usando puntos anatómicos equivalentes (ojos, hombros, caderas) y conservando su orientación.
-const MH_EYE := Vector3(0.0293, 0.8181, 0.1274)
 static func _quat_rest() -> Dictionary:
 	if not _q_rest.is_empty():
 		return _q_rest
@@ -190,7 +202,7 @@ func _ref(bn: String, quat: bool) -> Vector3:
 			if quat:
 				var e: Vector3 = qr.get("_eyes", g.call("head"))
 				return Vector3(0, e.y, e.z)
-			return Vector3(0, MH_EYE.y, MH_EYE.z)
+			return Vector3(0, mh_eye.y, mh_eye.z)
 		"spine_03", "spine_02":
 			# el torso de MakeHuman es más corto bajo los hombros: subir la coraza
 			return (g.call("upperarm_l") + g.call("upperarm_r")) * 0.5 + (Vector3.ZERO if quat else Vector3(0, 0.085, 0.01))
@@ -233,11 +245,14 @@ func _mh_eyes() -> void:
 	pupil.albedo_color = Color(0.01, 0.01, 0.01)
 	pupil.roughness = 0.05
 	# posiciones de los ojos (de MakeHuman, Blender Z arriba -> Godot Y arriba)
-	for e in [MH_EYE, Vector3(-MH_EYE.x, MH_EYE.y, MH_EYE.z)]:
+	for e in [mh_eye, Vector3(-mh_eye.x, mh_eye.y, mh_eye.z)]:
 		var g := Node3D.new()
 		hd.add_child(g)
 		g.transform = Transform3D(hb.basis.orthonormalized().inverse(), hb.affine_inverse() * e)
 		g.set_meta("mh_done", true)
+		if glow_eyes != "":
+			_mesh(g, _sph(0.0156), Mats.get_m("glow_" + glow_eyes))
+			continue
 		_mesh(g, _sph(0.0156), white)
 		_mesh(g, _cyl(0.0062, 0.0062, 0.0012, 16), iris, Vector3(0, 0, 0.0150), Vector3(PI / 2, 0, 0))
 		_mesh(g, _cyl(0.0027, 0.0027, 0.0014, 12), pupil, Vector3(0, 0, 0.0153), Vector3(PI / 2, 0, 0))
@@ -455,7 +470,7 @@ func loco(speed: float, zombie := false, hero := false) -> void:
 		play("Zombie_Walk_Fwd_Loop", clampf(s / 1.22, 0.6, 1.8), 0.3)
 		return
 	var clip := "Walk_Loop" if s < 1.9 else ("Jog_Fwd_Loop" if s < 3.8 else "Sprint_Loop")
-	var nat: float = MH_NAT[clip] if mh else AnimLib.NAT[clip]
+	var nat: float = float(mh_nat.get(clip, AnimLib.NAT.get(clip, 1.5))) if mh else AnimLib.NAT[clip]
 	play(clip, clampf(s / nat, 0.55, 2.1 if mh else 1.7), 0.28)
 
 ## Retroceso procedural: el cuerpo se sacude en la dirección del golpe sin interrumpir la animación

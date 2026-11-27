@@ -27,6 +27,7 @@ def _eyes(o):
 eL, eR = _eyes(bm)
 print("ojos", eL, eR)
 info = {"eye.L": list(eL), "eye.R": list(eR)}
+import json as _j; _j.dump({"eye": [abs(eL.x), eL.z, -eL.y]}, open(pref + "_eyes.json", "w"))
 # ---- máscaras de barba y cejas pintadas por vértice y horneadas a UV ----
 eyeL = mathutils.Vector(info["eye.L"]); eyeR = mathutils.Vector(info["eye.R"])
 ec = (eyeL + eyeR) / 2

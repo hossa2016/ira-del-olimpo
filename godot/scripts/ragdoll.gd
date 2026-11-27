@@ -32,6 +32,8 @@ static func activate(b: Body, impulse: Vector3) -> bool:
 	var all: Array = []
 	for part in PARTS:
 		var bi := sk.find_bone(part[0])
+		if bi < 0 and part[0] == "Head":
+			bi = sk.find_bone("head")
 		if bi < 0:
 			continue
 		var len := 0.2
@@ -40,7 +42,7 @@ static func activate(b: Body, impulse: Vector3) -> bool:
 			if ci >= 0:
 				len = sk.get_bone_global_pose(bi).origin.distance_to(sk.get_bone_global_pose(ci).origin)
 		var pb := PhysicalBone3D.new()
-		pb.bone_name = part[0]
+		pb.bone_name = sk.get_bone_name(bi)
 		pb.mass = 3.0 if part[0] in ["pelvis", "spine_02"] else 1.2
 		pb.friction = 0.9
 		pb.linear_damp = 0.4

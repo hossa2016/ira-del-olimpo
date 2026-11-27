@@ -13,6 +13,7 @@ const COMBO := [
 ]
 const BASH := {"clip": "Shield_OneShot", "speed": 1.25, "hits": [0.1], "end": 0.42, "lunge": [0.0, 0.16, 4.0], "reach": 1.9, "arc": 1.1, "dmg": 5.0, "kb": 7.0, "heavy": true, "bash": true}
 const DASH := {"clip": "Sword_Dash", "speed": 1.3, "hits": [0.33], "end": 0.78, "lunge": [0.04, 0.38, 10.0], "reach": 2.3, "arc": 0.9, "dmg": 20.0, "kb": 7.0, "heavy": true}
+const FINISH := {"clip": "Sword_Attack", "speed": 1.15, "hits": [0.4], "end": 0.9, "lunge": [0.04, 0.3, 4.5], "reach": 2.8, "arc": 1.2, "dmg": 999.0, "kb": 9.0, "heavy": true, "finish": true}
 const IRA := {"clip": "Sword_Attack", "speed": 1.0, "hits": [0.4], "end": 0.98, "lunge": [0.18, 0.38, 2.5], "reach": 4.6, "arc": 3.2, "dmg": 48.0, "kb": 12.0, "heavy": true, "ira": true}
 const PARRY_WIN := 0.22
 
@@ -253,7 +254,27 @@ func _start_block() -> void:
 	block_anim_t = 0.25
 	body.play("Sword_Block", 1.6, 0.08, true)
 
+## Enemigo al que se puede rematar: aturdido, derribado o casi muerto (jefes solo aturdidos y muy heridos)
+func finisher_target() -> Enemy:
+	var tg = game.nearest_enemy(global_position, 2.8)
+	if tg == null or tg.st == "dead" or tg.st == "rise":
+		return null
+	if tg.boss:
+		return tg if tg.st == "stun" and tg.hp <= tg.max_hp * 0.15 else null
+	if tg.st == "stun" or tg.st == "down" or tg.hp <= tg.max_hp * 0.2:
+		return tg
+	return null
+
 func _start_atk(wish: Vector3, m: float) -> void:
+	var ft := finisher_target()
+	if ft:
+		var d: Vector3 = ft.global_position - global_position
+		d.y = 0
+		_start_special(FINISH, d.normalized(), 1.0)
+		lock_t = ft
+		inv = 1.0
+		game.on_finish_start(self, ft)
+		return
 	_aim(wish, m, 4.5)
 	combo = (combo % 3) + 1 if (queued or clock - last_end < 0.45) else 1
 	queued = false

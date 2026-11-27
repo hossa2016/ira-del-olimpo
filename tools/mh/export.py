@@ -118,7 +118,12 @@ def _shell(name, pick, push, thick):
     b.normal_update()
     for v in b.verts:
         v.co += v.normal * push
-    bmesh.ops.smooth_vert(b, verts=[v for v in b.verts if v.is_boundary], factor=0.5, use_axis_x=True, use_axis_y=True, use_axis_z=True)
+    # borde liso: quitar dientes de sierra (vértices de borde con una sola cara) y suavizar varias veces
+    for _ in range(2):
+        lone = [v for v in b.verts if v.is_boundary and len(v.link_faces) <= 1]
+        bmesh.ops.delete(b, geom=lone, context="VERTS")
+    for _ in range(6):
+        bmesh.ops.smooth_vert(b, verts=[v for v in b.verts if v.is_boundary], factor=0.5, use_axis_x=True, use_axis_y=True, use_axis_z=True)
     b.to_mesh(ob.data); b.free()
     sm = ob.modifiers.new("solid", "SOLIDIFY"); sm.thickness = thick; sm.offset = 1.0; sm.use_rim = True
     bpy.context.view_layer.objects.active = ob
@@ -136,7 +141,7 @@ z_waist = (_rest("spine_01").z + _rest("pelvis").z) * 0.5 + 0.02
 def cuirass(co, w):
     torso = W(w, "spine_01", "spine_02", "spine_03", "pelvis", "neck_01", "clavicle_l", "clavicle_r")
     arms = W(w, "upperarm_l", "upperarm_r")
-    return torso > 0.55 and arms < 0.35 and z_waist < co.z < z_neck + 0.005
+    return torso > 0.55 and arms < 0.35 and z_waist < co.z < z_neck - 0.04
 def greave(co, w):
     for s in ("l", "r"):
         k = _rest("calf_" + s).z; f = _rest("foot_" + s).z

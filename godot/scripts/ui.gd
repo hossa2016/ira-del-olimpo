@@ -7,6 +7,9 @@ signal retry_pressed
 signal continue_pressed
 signal story_done(tag: String)
 signal toggle_pressed(which: String)
+signal pause_pressed
+signal pause_action(which: String)
+var pause_scr: Control
 
 var move := Vector2.ZERO
 var atk_edge := false
@@ -60,6 +63,7 @@ var boss_name := ""
 var clock := 0.0
 var _press := {}
 var threats: Array = []
+var finish_ready := false
 
 func _ready() -> void:
 	font_b = load("res://assets/fonts/cinzel.woff2")
@@ -255,14 +259,29 @@ func _build_menu() -> void:
 func set_toggles(music_on: bool, voice_on: bool) -> void:
 	menu.get_meta("btns")[2].text = "Música: " + ("sí" if music_on else "no")
 	menu.get_meta("btns")[3].text = "Narrador: " + ("sí" if voice_on else "no")
+	pause_scr.get_meta("btns")[3].text = menu.get_meta("btns")[2].text
+	pause_scr.get_meta("btns")[4].text = menu.get_meta("btns")[3].text
 
 func _build_over() -> void:
 	over = _screen("Has caído", "", [["Reintentar", func(): retry_pressed.emit()]])
 	over.visible = false
 	story = _screen("", "", [["Continuar", func(): story_done.emit(story_tag)]])
 	story.visible = false
+	pause_scr = _screen("Pausa", "", [["Seguir luchando", func(): pause_action.emit("resume")], ["Reiniciar mundo", func(): pause_action.emit("restart")], ["Menú principal", func(): pause_action.emit("menu")], ["Música: sí", func(): toggle_pressed.emit("music")], ["Narrador: sí", func(): toggle_pressed.emit("voice")]])
+	for i in range(1, 5):
+		var b: Button = pause_scr.get_meta("btns")[i]
+		b.custom_minimum_size = Vector2(260, 50)
+		b.add_theme_font_size_override("font_size", 20)
+	pause_scr.visible = false
+
+func show_pause(on: bool) -> void:
+	pause_scr.visible = on
+	playing = not on
+	_btn_ids.clear(); _joy_id = -1; _cam_id = -1; joy_on = false; move = Vector2.ZERO
+	pad.queue_redraw()
 
 func hide_screens() -> void:
+	pause_scr.visible = false
 	menu.visible = false
 	over.visible = false
 	story.visible = false
@@ -345,6 +364,10 @@ func screen_flash(col: Color, a: float) -> void:
 	flash_v = a
 
 func update_hud(hero: Hero, score: int, wave_txt: String, boss: Enemy) -> void:
+	var fr := hero.st != "dead" and hero.finisher_target() != null
+	if fr != finish_ready:
+		finish_ready = fr
+		pad.queue_redraw()
 	var nh := clampf(hero.hp / hero.max_hp, 0, 1)
 	if nh < hp_v - 0.001:
 		ghost_t = 0.55
@@ -538,6 +561,7 @@ func _layout() -> Dictionary:
 		"roll": {"c": Vector2(s.x - 196 * u, s.y - 60 * u), "r": 37 * u, "t": "Esquivar"},
 		"blk": {"c": Vector2(s.x - 70 * u, s.y - 218 * u), "r": 38 * u, "t": "Escudo"},
 		"ira": {"c": Vector2(s.x - 182 * u, s.y - 178 * u), "r": 34 * u, "t": "Ira"},
+		"pause": {"c": Vector2(s.x - 36 * u, 132 * u), "r": 22 * u},
 		"joy_r": 58 * u,
 		"joy_home": Vector2(110 * u, s.y - 120 * u),
 	}
@@ -557,6 +581,11 @@ func _draw_pad() -> void:
 	pad.draw_circle(kp, L.joy_r * 0.42, Color(0.12, 0.08, 0.05, 0.75))
 	pad.draw_circle(kp + Vector2(0, -2), L.joy_r * 0.36, Color(0.86, 0.66, 0.38, 0.9))
 	pad.draw_arc(kp, L.joy_r * 0.42, 0, TAU, 32, Color(0.42, 0.28, 0.15), 2.0, true)
+	var pz: Dictionary = L.pause
+	pad.draw_circle(pz.c, pz.r, Color(0.05, 0.03, 0.02, 0.5))
+	pad.draw_arc(pz.c, pz.r, 0, TAU, 40, BRONZE, 2.0, true)
+	for dx in [-0.28, 0.28]:
+		pad.draw_rect(Rect2(pz.c + Vector2(dx * pz.r - pz.r * 0.11, -pz.r * 0.4), Vector2(pz.r * 0.22, pz.r * 0.8)), Color(0.96, 0.86, 0.66))
 	for k in ["atk", "roll", "blk", "ira"]:
 		if k == "ira" and not rage_full:
 			continue
@@ -565,7 +594,7 @@ func _draw_pad() -> void:
 			_press[k] = 0.0
 		var pr: float = _press[k]
 		var r: float = b.r * (1.0 - pr * 0.08)
-		var ira: bool = k == "ira"
+		var ira: bool = k == "ira" or (k == "atk" and finish_ready)
 		var glow := 0.5 + 0.5 * sin(clock * 5.0)
 		if ira:
 			pad.draw_circle(b.c, r * (1.18 + glow * 0.1), Color(1, 0.4, 0.1, 0.18 + glow * 0.12))
@@ -580,6 +609,9 @@ func _draw_pad() -> void:
 		var icol := Color(0.96, 0.86, 0.66).lerp(Color(1, 1, 1), pr)
 		_icon(k, b.c + Vector2(0, -r * 0.1), r, icol)
 		var fs := int(maxf(10.0, r * 0.2))
+		if k == "atk" and finish_ready:
+			b = b.duplicate()
+			b.t = "Remate"
 		var w := font_b.get_string_size(b.t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
 		pad.draw_string(font_b, b.c + Vector2(-w / 2, r * 0.62), b.t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0.96, 0.86, 0.66, 0.85))
 
@@ -589,6 +621,9 @@ func _input(e: InputEvent) -> void:
 	if e is InputEventScreenTouch:
 		var L := _layout()
 		if e.pressed:
+			if e.position.distance_to(L.pause.c) < L.pause.r * 1.5:
+				pause_pressed.emit()
+				return
 			for k in ["atk", "roll", "blk", "ira"]:
 				if k == "ira" and not rage_full:
 					continue

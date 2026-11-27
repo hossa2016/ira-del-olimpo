@@ -12,7 +12,7 @@ bpy.ops.wm.read_factory_settings(use_empty=True)
 addon_utils.enable("bl_ext.user_default.mpfb", default_set=True)
 macro = TargetService.get_default_macro_info_dict()
 macro.update(json.loads(open(macro_j).read()))
-bm = HumanService.create_human(mask_helpers=True, detailed_helpers=False, extra_vertex_groups=True,
+bm = HumanService.create_human(mask_helpers=True, detailed_helpers=True, extra_vertex_groups=True,
                                feet_on_ground=False, scale=0.1, macro_detail_dict=macro)
 T = "/root/.config/blender/5.3/extensions/user_default/mpfb/data/targets"
 for rel, wt in json.loads(open(targets_j).read()).items():
