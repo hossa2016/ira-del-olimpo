@@ -13,6 +13,8 @@ var crest_scale := 1.0
 var rec_p := Vector3.ZERO
 var rec_v := Vector3.ZERO
 var lean_x := 0.0
+var aim: SpineAim
+var upright := false
 
 func setup(o: Dictionary) -> void:
 	model = load("res://assets/models/hero.glb").instantiate()
@@ -37,6 +39,16 @@ func setup(o: Dictionary) -> void:
 		_helmet(o.get("crest", "horse"), "helm_" + ("bronze" if mk == "bronze" else mk.replace("dark_bronze", "dark")), o.get("helm", "attic"))
 	if o.get("armor", false):
 		_armor(metal)
+	elif o.get("rag", true):
+		# taparrabos de tela vieja (los no-muertos ya no se ven en ropa interior)
+		var pv := _att("pelvis")
+		_mesh(pv, _cyl(0.2, 0.235, 0.24, 20), Mats.get_m("rag"), Vector3(0, -0.04, 0.01), Vector3.ZERO, Vector3(1.0, 1.0, 0.85))
+		for k in range(10):
+			var a := k / 10.0 * TAU + 0.3
+			var st := _mesh(pv, _box(0.09, 0.16 + (k % 3) * 0.04, 0.01), Mats.get_m("rag"), Vector3(sin(a) * 0.215, -0.2, cos(a) * 0.185 + 0.01))
+			st.rotation_order = EULER_ORDER_YXZ
+			st.rotation = Vector3(-0.08, a, (k % 2 - 0.5) * 0.15)
+		_mesh(pv, TorusMeshHelper.make(0.205, 0.015), Mats.get_m("leather"), Vector3(0, 0.07, 0.01), Vector3.ZERO, Vector3(1, 1, 0.85))
 	if o.get("shield", false):
 		_shield(metal, o.get("shield_face", "cloth"), o.get("shield_r", 0.42), o.get("emblem", "damon"))
 	match o.get("weapon", ""):
@@ -57,6 +69,32 @@ func setup(o: Dictionary) -> void:
 		call_deferred("_beard")
 	var sc: float = o.get("scale", 1.0)
 	scale = Vector3.ONE * sc
+	upright = o.get("upright", false)
+	# proporciones propias: escalar huesos (las animaciones no tienen pistas de escala, así que se conservan)
+	var props: Dictionary = o.get("bones", {})
+	for bn in props.keys():
+		var bi := skel.find_bone(bn)
+		if bi >= 0:
+			skel.set_bone_pose_scale(bi, Vector3.ONE * float(props[bn]))
+	aim = SpineAim.new()
+	skel.add_child(aim)
+	aim.setup(skel)
+
+## Mira hacia un punto con el tronco y la cabeza (limitado a ±50°).
+func look_toward(p: Vector3, w := 1.0) -> void:
+	var to := p - global_position
+	to.y = 0
+	if to.length() < 0.3:
+		aim.yaw = 0.0
+		return
+	var f := global_transform.basis.z
+	f.y = 0
+	var rel := wrapf(atan2(to.x, to.z) - atan2(f.x, f.z), -PI, PI)
+	aim.yaw = clampf(rel, -0.9, 0.9)
+	aim.weight = w
+
+func look_clear() -> void:
+	aim.yaw = 0.0
 
 # ---------- utilidades ----------
 func _att(bone: String) -> BoneAttachment3D:
@@ -138,8 +176,9 @@ func _armor(metal: Material) -> void:
 	# coraza musculada: dos valvas redondeadas (pecho y espalda) que siguen el torso, con hombreras de lino
 	var ch := _att("spine_03")
 	# medidas tomadas del esqueleto: spine_03 a 1,31 m, cuello a 1,52 m, cintura ~1,0 m
-	_mesh(ch, _sph(1.0), metal, Vector3(0, 0.045, 0.02), Vector3(-0.12, 0, 0), Vector3(0.21, 0.17, 0.155))
-	_mesh(ch, _sph(1.0), metal, Vector3(0, -0.16, 0.0), Vector3(0.1, 0, 0), Vector3(0.185, 0.16, 0.135))
+	# una sola pieza (pecho y vientre) con cinturón; antes eran dos esferas
+	_mesh(ch, _sph(1.0), metal, Vector3(0, -0.035, 0.018), Vector3(-0.04, 0, 0), Vector3(0.205, 0.255, 0.152))
+	_mesh(ch, TorusMeshHelper.make(0.175, 0.014), metal, Vector3(0, -0.25, 0.01), Vector3(0.08, 0, 0), Vector3(1.0, 1.0, 0.8))
 	var lin := Mats.get_m("linen")
 	for s in [-1, 1]:
 		var sh := _att("upperarm_l" if s < 0 else "upperarm_r")
@@ -259,9 +298,9 @@ func done() -> bool:
 func loco(speed: float, zombie := false, hero := false) -> void:
 	var s := speed / scale.x
 	if s < 0.15:
-		play("Zombie_Idle_Loop" if zombie else ("Sword_Idle" if hero else "Idle_Loop"), 1.0, 0.3)
+		play("Zombie_Idle_Loop" if zombie and not upright else "Idle_Loop", 1.0, 0.3)
 		return
-	if zombie:
+	if zombie and not upright:
 		play("Zombie_Walk_Fwd_Loop", clampf(s / 1.22, 0.6, 1.8), 0.3)
 		return
 	var clip := "Walk_Loop" if s < 1.9 else ("Jog_Fwd_Loop" if s < 3.8 else "Sprint_Loop")

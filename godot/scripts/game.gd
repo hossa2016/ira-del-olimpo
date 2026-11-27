@@ -863,6 +863,8 @@ func _occlusion() -> void:
 	var seg := hp - cp
 	var L := seg.length()
 	for e in enemies:
+		if e.st == "dead" and e.st_t > 2.3:
+			continue
 		var c: Vector3 = e.global_position + Vector3(0, 1.0 * e.sc, 0)
 		var t := clampf((c - cp).dot(seg) / maxf(L * L, 0.001), 0.0, 1.0)
 		var d := (cp + seg * t).distance_to(c)

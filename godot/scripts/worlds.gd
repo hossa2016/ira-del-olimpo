@@ -22,7 +22,7 @@ const LIST := [
 		"intro": "Creta. Pasillos que se cierran a tu espalda y antorchas que nunca se apagan. Los guardias de Minos, muertos hace siglos, todavía vigilan.\n\nEn el corazón espera Asterión, el Minotauro. Cuando su cuerpo brille en rojo, su embestida no se puede bloquear: esquiva.",
 		"outro": "Asterión se desploma. La sangre del toro abre una grieta en el suelo que desciende hacia el reino de Hades.",
 		"sky_top": Color(0.05, 0.05, 0.09), "sky_hor": Color(0.34, 0.17, 0.1), "gnd": Color(0.05, 0.04, 0.04),
-		"sun": Color(0.8, 0.66, 0.85), "sun_e": 0.85, "sun_rot": Vector3(-55, 30, 0), "amb": 0.55, "exp": 1.1,
+		"sun": Color(0.85, 0.7, 0.85), "sun_e": 1.15, "sun_rot": Vector3(-55, 30, 0), "amb": 0.8, "exp": 1.2,
 		"fog": Color(0.3, 0.16, 0.1), "fog_d": 0.012, "fog_h": 0.12,
 		"hdri": "cantera", "hdri_tint": Color(0.5, 0.35, 0.28), "clouds": 0.55, "cloud_col": Color(0.4, 0.22, 0.16), "cloud_shade": Color(0.08, 0.06, 0.08),
 	},
@@ -33,7 +33,7 @@ const LIST := [
 		"intro": "Bajo la tierra fluye el Estigia, verde como el veneno. Las Sombras de los caídos son rápidas y no sienten dolor.\n\nCerbero guarda la salida. Su aliento de fuego atraviesa cualquier escudo: rueda fuera del cono.",
 		"outro": "Las tres cabezas aúllan por última vez. Hades, en silencio, te deja pasar. Arriba, el Olimpo ya conoce tu nombre: fue Ares quien quemó tu ciudad.",
 		"sky_top": Color(0.04, 0.06, 0.09), "sky_hor": Color(0.12, 0.32, 0.3), "gnd": Color(0.02, 0.05, 0.05),
-		"sun": Color(0.6, 0.9, 0.85), "sun_e": 1.25, "sun_rot": Vector3(-60, 80, 0), "amb": 0.75, "exp": 1.25,
+		"sun": Color(0.65, 0.92, 0.88), "sun_e": 1.5, "sun_rot": Vector3(-60, 80, 0), "amb": 1.0, "exp": 1.3,
 		"fog": Color(0.1, 0.3, 0.27), "fog_d": 0.016, "fog_h": 0.12,
 		"hdri": "cantera", "hdri_tint": Color(0.25, 0.55, 0.5), "clouds": 0.6, "cloud_col": Color(0.12, 0.3, 0.28), "cloud_shade": Color(0.02, 0.05, 0.06),
 	},
@@ -271,6 +271,14 @@ static func fire_at(g: Game, parent: Node3D, pos: Vector3, flame: String, k: flo
 # ---------------- constructores de cada mundo ----------------
 static func build(g: Game, root: Node3D, id: String) -> void:
 	probe(root)
+	# suelo físico para los cuerpos que caen (capa propia: no afecta al movimiento de los personajes)
+	var floor_b := StaticBody3D.new()
+	floor_b.collision_layer = 16
+	floor_b.collision_mask = 0
+	var fcs := CollisionShape3D.new()
+	fcs.shape = WorldBoundaryShape3D.new()
+	floor_b.add_child(fcs)
+	root.add_child(floor_b)
 	match id:
 		"tebas":
 			_tebas(g, root)
@@ -335,8 +343,8 @@ static func amphorae(root: Node3D, n: int, seed_i: int, broken := 0.3) -> void:
 		am.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 		# banda de figuras negras y asas
 		var t := TorusMesh.new()
-		t.inner_radius = 0.225
-		t.outer_radius = 0.25
+		t.inner_radius = 0.228
+		t.outer_radius = 0.242
 		t.rings = 24
 		t.ring_segments = 4
 		put(g, t, band, Vector3(0, 0.5, 0), Vector3.ZERO, null, Vector3(1, 2.2, 1))
@@ -354,8 +362,16 @@ static func drums(root: Node3D, marble: Material, n: int, seed_i: int) -> void:
 	for k in range(n):
 		var a := rnd.randf() * TAU
 		var p := Vector3(cos(a), 0, sin(a)) * (AR + rnd.randf_range(-0.2, 1.0))
-		var d := put(root, Geo.fluted_column(1.1, 0.6, 0.58), marble, p + Vector3(0, 0.58, 0), Vector3(0, rnd.randf() * TAU, PI / 2))
+		var rot := Vector3(0, rnd.randf() * TAU, PI / 2)
+		var d := put(root, Geo.fluted_column(1.1, 0.6, 0.58), marble, p + Vector3(0, 0.58, 0), rot)
 		d.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		# núcleo macizo con caras de corte (antes se veía hueco, como papel)
+		var core := CylinderMesh.new()
+		core.top_radius = 0.565
+		core.bottom_radius = 0.585
+		core.height = 1.1
+		core.radial_segments = 24
+		put(root, core, marble, p + Vector3(0, 0.58, 0), rot)
 		for j in range(4):
 			var q := p + Vector3(rnd.randf_range(-1.2, 1.2), 0.05, rnd.randf_range(-1.2, 1.2))
 			put(root, Geo.rock(seed_i * 10 + j + k * 4, rnd.randf_range(0.08, 0.2)), marble, q, Vector3(rnd.randf(), rnd.randf(), 0))
@@ -364,8 +380,14 @@ static func statue(root: Node3D, p: Vector3, yaw: float, mat_col: Color, metalli
 	var ped := StandardMaterial3D.new()
 	ped.albedo_color = mat_col.darkened(0.15)
 	ped.roughness = 0.6
-	put(root, box(1.3, 1.2, 1.3), ped, p + Vector3(0, 0.6, 0), Vector3(0, yaw, 0))
-	put(root, box(1.5, 0.15, 1.5), ped, p + Vector3(0, 1.25, 0), Vector3(0, yaw, 0))
+	var pm := tex_mat("res://assets/tex/marble_c.jpg", "", "", 0.6, mat_col.darkened(0.12))
+	pm.roughness = 0.55
+	put(root, box(1.6, 0.18, 1.6), pm, p + Vector3(0, 0.09, 0), Vector3(0, yaw, 0))
+	put(root, box(1.45, 0.1, 1.45), pm, p + Vector3(0, 0.23, 0), Vector3(0, yaw, 0))
+	put(root, box(1.2, 0.85, 1.2), pm, p + Vector3(0, 0.7, 0), Vector3(0, yaw, 0))
+	put(root, box(1.42, 0.1, 1.42), pm, p + Vector3(0, 1.17, 0), Vector3(0, yaw, 0))
+	put(root, box(1.55, 0.1, 1.55), pm, p + Vector3(0, 1.27, 0), Vector3(0, yaw, 0))
+	ped = ped
 	var st := Body.new()
 	root.add_child(st)
 	st.setup({"tint": mat_col, "metal": "gold" if metallic > 0.5 else "patina", "crest": "horse", "weapon": "spear", "shield": true, "armor": true, "scale": 1.3, "helm": "corinthian"})

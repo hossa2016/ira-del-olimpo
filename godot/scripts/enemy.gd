@@ -32,6 +32,8 @@ var title := ""
 var flash_col := Color(0.5, 0.35, 0.22)
 var armored := false
 var step_acc := 0.0
+var zombie_loco := true
+var ragdoll_on := false
 
 const SPEAR := {"clip": "Punch_Cross", "wind_spd": 0.32, "wind_until": 0.13, "spd": 1.1, "hits": [0.19], "end": 0.72, "range": 2.2, "trig": 2.0, "arc": 0.8, "stop": 1.5, "lunge": 2.2}
 const HOOK := {"clip": "Melee_Hook", "wind_spd": 0.3, "wind_until": 0.16, "spd": 1.0, "hits": [0.27], "end": 0.47, "range": 2.0, "trig": 1.8, "arc": 1.0, "stop": 1.3, "lunge": 2.6}
@@ -54,7 +56,8 @@ func setup(k: String, lv: float) -> void:
 		"esp":
 			max_hp = 32.0; attacks = [SPEAR]
 			var tints := [Color(0.92, 0.95, 0.9), Color(0.85, 0.9, 0.84), Color(0.95, 0.94, 0.88)]
-			o = {"tint": tints[randi() % 3], "skin": "p", "metal": "patina", "crest": "" if randf() < 0.65 else "black", "weapon": "spear", "eyes": "red"}
+			o = {"tint": tints[randi() % 3], "skin": "p", "metal": "patina", "crest": "" if randf() < 0.65 else "black", "weapon": "spear", "eyes": "red",
+				"bones": {"spine_03": randf_range(0.93, 1.0), "Head": randf_range(0.97, 1.04)}}
 		"lab":
 			max_hp = 38.0; speed = 2.0; dmg = 9.0; attacks = [HOOK]
 			o = {"tint": Color(0.86, 0.8, 0.72), "skin": "p", "metal": "dark_bronze", "crest": "", "weapon": "sword", "eyes": "red", "armor": true}
@@ -67,17 +70,20 @@ func setup(k: String, lv: float) -> void:
 		"gig":
 			sc = 1.6; boss = true; max_hp = 260.0; speed = 1.9; dmg = 18.0; r = 0.75; attacks = [GIG]
 			title = "Esparto Gigante"
-			o = {"tint": Color(0.9, 0.93, 0.88), "skin": "p", "metal": "patina", "crest": "horse", "weapon": "spear", "eyes": "red"}
+			o = {"tint": Color(0.9, 0.93, 0.88), "skin": "p", "metal": "patina", "crest": "horse", "weapon": "spear", "eyes": "red", "upright": true,
+				"bones": {"spine_03": 1.1, "Head": 0.88, "hand_l": 1.2, "hand_r": 1.2, "thigh_l": 1.04, "thigh_r": 1.04}}
 		"mino":
 			sc = 1.75; boss = true; max_hp = 420.0; speed = 2.6; dmg = 17.0; r = 0.8; zombie = false
 			attacks = [M_SLAM, M_SWEEP, M_CHARGE]
 			title = "Asterión, el Minotauro"
-			o = {"tint": Color(0.55, 0.42, 0.34), "skin": "d", "bull": true, "weapon": "labrys", "eyes": "red", "armor": true, "metal": "dark_bronze"}
+			o = {"tint": Color(0.55, 0.42, 0.34), "skin": "d", "bull": true, "weapon": "labrys", "eyes": "red", "armor": true, "metal": "dark_bronze",
+				"bones": {"spine_03": 1.18, "neck_01": 1.15, "hand_l": 1.15, "hand_r": 1.15, "thigh_l": 1.06, "thigh_r": 1.06}}
 		"ares":
 			sc = 1.38; boss = true; max_hp = 480.0; speed = 3.0; dmg = 13.0; r = 0.62; zombie = false; guard_chance = 0.45
 			attacks = [A_COMBO, A_DASH]
 			title = "Ares, dios de la guerra"
-			o = {"tint": Color(1.0, 0.82, 0.74), "metal": "gold", "crest": "horse", "crest_scale": 1.4, "weapon": "sword", "blade": 1.35, "shield": true, "shield_face": "horse", "emblem": "ares", "armor": true, "eyes": "fire", "beard": true}
+			o = {"tint": Color(1.0, 0.82, 0.74), "metal": "gold", "crest": "horse", "crest_scale": 1.4, "weapon": "sword", "blade": 1.35, "shield": true, "shield_face": "horse", "emblem": "ares", "armor": true, "eyes": "fire", "beard": true,
+				"bones": {"spine_03": 1.08, "Head": 0.95}}
 	max_hp *= lv
 	hp = max_hp
 	A = attacks[0]
@@ -95,12 +101,14 @@ func setup(k: String, lv: float) -> void:
 	add_child(body)
 	o["scale"] = sc
 	body.setup(o)
+	if body.upright:
+		zombie_loco = false
 	if k == "ares":
 		var cape := Cape.new()
 		add_child(cape)
 		cape.setup(body, Color(0.45, 0.04, 0.03))
 	if zombie:
-		body.play("Zombie_Idle_Loop", 1.0, 0.0)
+		body.play("Zombie_Idle_Loop" if not body.upright else "Idle_Loop", 1.0, 0.0)
 		body.position.y = -2.5 * sc
 	else:
 		st = "move"
@@ -121,7 +129,11 @@ func _pick_attack(d: float) -> Dictionary:
 func tick(dt: float, hero: Hero) -> void:
 	st_t += dt
 	if st == "dead":
-		if st_t > 1.8:
+		if ragdoll_on:
+			# el cuerpo físico no se hunde: se desvanece
+			if st_t > 2.3:
+				set_fade(clampf((st_t - 2.3) / 1.0, 0.0, 1.0))
+		elif st_t > 1.8:
 			body.position.y -= dt * 0.7
 		return
 	if st == "rise":
@@ -161,7 +173,9 @@ func tick(dt: float, hero: Hero) -> void:
 				if ln < 1.5 * maxf(sc, o.sc) and ln > 0.01:
 					want += dd / ln * (1.5 - ln) * 2.0
 		fwd_speed = maxf(0.0, vel.dot(Vector3(sin(face), 0, cos(face))))
-		body.loco(fwd_speed, zombie)
+		body.loco(fwd_speed, zombie and zombie_loco)
+		if st == "move" and alive:
+			body.look_toward(hero.global_position, 0.8)
 		if alive and cd <= 0.0:
 			var pick := _pick_attack(d)
 			if not pick.is_empty() and (boss or game.take_token(self)):
@@ -182,12 +196,12 @@ func tick(dt: float, hero: Hero) -> void:
 		if st_t >= 2.45:
 			st = "move"
 			cd = 0.8
-			body.play("Zombie_Idle_Loop" if zombie else "Idle_Loop", 1.0, 0.3)
+			body.play("Zombie_Idle_Loop" if zombie and zombie_loco else "Idle_Loop", 1.0, 0.3)
 	elif st == "stun":
 		if st_t >= (1.0 if boss else 1.4):
 			st = "move"
 			cd = 0.6
-			body.play("Zombie_Idle_Loop" if zombie else "Idle_Loop", 1.0, 0.25)
+			body.play("Zombie_Idle_Loop" if zombie and zombie_loco else "Idle_Loop", 1.0, 0.25)
 	elif st == "block":
 		face = lerp_angle(face, tf, 1.0 - exp(-8.0 * dt))
 		if st_t >= 0.45:
@@ -341,7 +355,13 @@ func hurt(amount: float, push: Vector3, heavy: bool, c := {}) -> bool:
 		if push.length() > 0.01:
 			face = atan2(-push.x, -push.z)
 			body.rotation.y = face
-		body.play("Death01", 1.2, 0.15, true)
+		var ragdolled := false
+		if not boss and sc <= 1.01:
+			var imp := push * (0.9 if heavy else 0.6) + Vector3.UP * (2.2 if heavy else 1.2)
+			ragdolled = Ragdoll.activate(body, imp)
+		if not ragdolled:
+			body.play("Death01", 1.2, 0.15, true)
+		ragdoll_on = ragdolled
 		get_tree().create_timer(0.7).timeout.connect(func():
 			if is_instance_valid(self):
 				game.sfx_at("bodyfall", global_position)

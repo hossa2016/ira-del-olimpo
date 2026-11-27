@@ -58,7 +58,7 @@ func _ready() -> void:
 	collision_mask = 1 | 4
 	body = Body.new()
 	add_child(body)
-	body.setup({"tint": Color(0.95, 0.82, 0.72), "armor": true, "shield": true, "weapon": "sword", "beard": true, "crest": "horse", "crest_scale": 1.4})
+	body.setup({"tint": Color(0.95, 0.82, 0.72), "armor": true, "shield": true, "weapon": "sword", "beard": true, "crest": "horse", "crest_scale": 1.4, "bones": {"spine_03": 1.04}})
 	trail = SwordTrail.new()
 	add_child(trail)
 	var cape := Cape.new()
@@ -75,7 +75,7 @@ func reset_at(p: Vector3) -> void:
 	guard = 100.0
 	st = "loco"
 	face = PI
-	body.play("Sword_Idle", 1.0, 0.0, true)
+	body.play("Idle_Loop", 1.0, 0.0, true)
 	hp_changed.emit()
 
 func blocking() -> bool:
@@ -234,6 +234,14 @@ func physics_tick(dt: float, inp: Dictionary, cam_yaw: float) -> void:
 	lean = lerpf(lean, tl, minf(1.0, dt * 8.0))
 	body.rotation = Vector3(0, face, 0)
 	body.model.rotation.z = lean
+	# el tronco y la cabeza siguen al enemigo más cercano (menos durante volteretas y ataques)
+	var lt = game.nearest_enemy(global_position, 7.0)
+	if lt and (st == "loco" or st == "block"):
+		body.look_toward(lt.global_position, 1.0)
+	elif lt and st == "atk":
+		body.look_toward(lt.global_position, 0.4)
+	else:
+		body.look_clear()
 	if body.sword:
 		var on: bool = st == "atk" and body.pos_t() < cfg.get("end", 0.5)
 		trail.feed(body.sword.global_transform * Vector3(0, 0, 0.12), body.sword.global_transform * Vector3(0, 0, 0.72), on, Color(1.0, 0.55, 0.2) if cfg.has("ira") else Color(1.0, 0.92, 0.8))

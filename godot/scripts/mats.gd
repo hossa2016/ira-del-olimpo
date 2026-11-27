@@ -66,6 +66,9 @@ static func get_m(key: String) -> Material:
 			m.uv1_triplanar = true; m.uv1_scale = Vector3.ONE * 3.0
 		"chiton":
 			m.albedo_color = Color(0.4, 0.07, 0.05); m.roughness = 0.95
+		"rag":
+			m.albedo_color = Color(0.24, 0.18, 0.13); m.roughness = 1.0; m.cull_mode = BaseMaterial3D.CULL_DISABLED
+			m.albedo_texture = load("res://assets/tex/fur_c.jpg"); m.uv1_triplanar = true; m.uv1_scale = Vector3.ONE * 4.0
 		"linen":
 			m.albedo_color = Color(0.66, 0.58, 0.45); m.roughness = 0.95
 		"gums":
