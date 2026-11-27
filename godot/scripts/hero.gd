@@ -40,6 +40,7 @@ var lean := 0.0
 var clock := 0.0
 var blk_since := -9.0
 var block_anim_t := 0.0
+var trail: SwordTrail
 
 func _ready() -> void:
 	var col := CollisionShape3D.new()
@@ -53,7 +54,9 @@ func _ready() -> void:
 	collision_mask = 1 | 4
 	body = Body.new()
 	add_child(body)
-	body.setup({"tint": Color(0.95, 0.82, 0.72), "armor": true, "shield": true, "weapon": "sword", "beard": true, "crest": "horse"})
+	body.setup({"tint": Color(0.95, 0.82, 0.72), "armor": true, "shield": true, "weapon": "sword", "beard": true, "crest": "horse", "crest_scale": 1.4})
+	trail = SwordTrail.new()
+	add_child(trail)
 	body.rotation.y = face
 
 func reset_at(p: Vector3) -> void:
@@ -192,6 +195,9 @@ func physics_tick(dt: float, inp: Dictionary, cam_yaw: float) -> void:
 	lean = lerpf(lean, tl, minf(1.0, dt * 8.0))
 	body.rotation = Vector3(0, face, 0)
 	body.model.rotation.z = lean
+	if body.sword:
+		var on: bool = st == "atk" and body.pos_t() < cfg.get("end", 0.5)
+		trail.feed(body.sword.global_transform * Vector3(0, 0, 0.12), body.sword.global_transform * Vector3(0, 0, 0.72), on, Color(1.0, 0.55, 0.2) if cfg.has("ira") else Color(1.0, 0.92, 0.8))
 
 func _start_block() -> void:
 	st = "block"
@@ -244,6 +250,7 @@ func _start_roll(wish: Vector3, m: float) -> void:
 	roll_cd = 0.7
 	queued = false
 	body.play("Roll", 2.4, 0.08, true)
+	game.sfx("roll")
 
 ## Devuelve "hit", "block", "parry" o "miss".
 func take_hit(dmg: float, from: Vector3, src: Node = null, unblockable := false) -> String:

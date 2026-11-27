@@ -8,6 +8,8 @@ var ap: AnimationPlayer
 var skin_mat: StandardMaterial3D
 var sword: Node3D
 var cur := ""
+var dropped: Node3D = null
+var crest_scale := 1.0
 
 func setup(o: Dictionary) -> void:
 	model = load("res://assets/models/hero.glb").instantiate()
@@ -23,6 +25,7 @@ func setup(o: Dictionary) -> void:
 	model.add_child(ap)
 	ap.root_node = NodePath("..")
 	ap.add_animation_library("", AnimLib.get_lib())
+	crest_scale = o.get("crest_scale", 1.0)
 	var mk: String = o.get("metal", "bronze")
 	var metal: Material = Mats.get_m(mk)
 	if o.get("bull", false):
@@ -104,7 +107,9 @@ func _helmet(crest: String, hm: String) -> void:
 	var helm := _mesh(g, Geo.corinthian_helmet(), Mats.get_m(hm))
 	helm.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	if crest != "":
-		_mesh(g, Geo.crest(), Mats.get_m(crest))
+		var cr := _mesh(g, Geo.crest(), Mats.get_m(crest))
+		cr.scale = Vector3(1.15, crest_scale, crest_scale)
+		cr.position.y = (crest_scale - 1.0) * -0.05
 		_mesh(g, _box(0.02, 0.05, 0.32), Mats.get_m(hm), Vector3(0, 0.19, -0.01))
 
 func _bull_head() -> void:
@@ -181,6 +186,25 @@ func _labrys() -> void:
 	_mesh(sword, _cyl(0.025, 0.025, 1.25, 8), Mats.get_m("wood"), Vector3(0, 0, 0.5), Vector3(PI / 2, 0, 0))
 	_mesh(sword, Geo.labrys_blade(), Mats.get_m("dark_bronze"), Vector3(0, 0, 1.0))
 	_mesh(sword, _cyl(0.04, 0.04, 0.12, 10), Mats.get_m("bronze"), Vector3(0, 0, 1.0), Vector3(PI / 2, 0, 0))
+
+## Al morir, el arma cae al suelo en lugar de quedar clavada en la mano.
+func drop_weapon(world: Node3D) -> void:
+	if sword == null or not is_instance_valid(sword):
+		return
+	var gt := sword.global_transform
+	sword.get_parent().remove_child(sword)
+	world.add_child(sword)
+	sword.global_transform = gt
+	dropped = sword
+	var fwd := gt.basis.z
+	fwd.y = 0
+	if fwd.length() < 0.01:
+		fwd = Vector3.FORWARD
+	var target_basis := Basis.looking_at(-fwd.normalized(), Vector3.UP).scaled(gt.basis.get_scale())
+	var target_pos := Vector3(gt.origin.x, 0.04, gt.origin.z)
+	var tw := sword.create_tween().set_parallel(true)
+	tw.tween_property(sword, "global_transform", Transform3D(target_basis, target_pos), 0.4).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	sword = null
 
 func _beard() -> void:
 	var b: Node3D = load("res://assets/models/beard.glb").instantiate()

@@ -65,7 +65,7 @@ def slabs(rects, grout, bevel, base_rgb, var, seed, stain=0.35):
     col *= (1 - stain * np.clip(n3 * 0.5 + 0.2, 0, 1))[..., None] * 0 + 1
     dirt = np.clip(1 - dw / (bevel * 3), 0, 1)
     col *= (1 - 0.25 * dirt)[..., None]
-    groutc = np.array(base_rgb) * 0.42
+    groutc = np.array(base_rgb) * 0.6
     col = col * g[..., None] + groutc * (1 - g[..., None])
     h = b * 1.0 + n1 * 0.04 + n2 * 0.015 + tilt * 3
     rough = 0.72 + 0.12 * n1 - 0.1 * (b > 0.98) + 0.2 * (1 - g)
@@ -75,7 +75,7 @@ def gen_floor():
     rects = []
     for (x0, y0, x1, y1) in [(0, 0, 512, 512), (512, 0, 1024, 512), (0, 512, 512, 1024), (512, 512, 1024, 1024)]:
         split_rects(x0, y0, x1, y1, 110, rects)
-    col, h, rough = slabs(rects, 3.0, 7.0, (150, 128, 101), 0.06, 11)
+    col, h, rough = slabs(rects, 2.5, 6.0, (150, 128, 101), 0.06, 11)
     save(col, "floor_c.jpg")
     normal_from_h(h, 2.2).save(os.path.join(OUT, "floor_n.jpg"), quality=92)
     save(np.repeat((np.clip(rough, 0, 1) * 255)[..., None], 3, -1), "floor_r.jpg")

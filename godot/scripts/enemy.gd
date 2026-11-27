@@ -75,7 +75,7 @@ func setup(k: String, lv: float) -> void:
 			sc = 1.38; boss = true; max_hp = 480.0; speed = 3.0; dmg = 13.0; r = 0.62; zombie = false; guard_chance = 0.45
 			attacks = [A_COMBO, A_DASH]
 			title = "Ares, dios de la guerra"
-			o = {"tint": Color(1.0, 0.82, 0.74), "metal": "gold", "crest": "horse", "weapon": "sword", "blade": 1.35, "shield": true, "shield_face": "horse", "armor": true, "eyes": "fire", "beard": true}
+			o = {"tint": Color(1.0, 0.82, 0.74), "metal": "gold", "crest": "horse", "crest_scale": 1.4, "weapon": "sword", "blade": 1.35, "shield": true, "shield_face": "horse", "armor": true, "eyes": "fire", "beard": true}
 	max_hp *= lv
 	hp = max_hp
 	A = attacks[0]
@@ -234,7 +234,7 @@ func _attack(dt: float, hero: Hero, d: float, dir: Vector3, tf: float) -> Vector
 			game.shockwave(global_position + fw * 1.4 * sc, A.shock, dm, A.get("unbl", false), self)
 		elif d < A.range and fw.dot(dir) > cos(A.arc):
 			hero.take_hit(dm, global_position, self, A.get("unbl", false))
-		game.sfx("whoosh")
+		game.sfx_at("whoosh", global_position)
 	if t >= A.end or body.done():
 		if A.has("next") and d < 4.0 and randf() < 0.8:
 			_begin(A_B if A.next == "A_B" else A_C)
@@ -268,6 +268,16 @@ func _charge(dt: float, hero: Hero, d: float, dir: Vector3) -> Vector3:
 		game.cam.shake(0.4)
 		return Vector3.ZERO
 	return want
+
+var _fade := 0.0
+var _meshes: Array = []
+func set_fade(f: float) -> void:
+	_fade = move_toward(_fade, f, 0.12)
+	if _meshes.is_empty():
+		_meshes = find_children("*", "GeometryInstance3D", true, false)
+	for m in _meshes:
+		if is_instance_valid(m):
+			m.transparency = _fade
 
 func parried() -> void:
 	if st == "dead":
@@ -306,6 +316,7 @@ func hurt(amount: float, push: Vector3, heavy: bool, c := {}) -> bool:
 			face = atan2(-push.x, -push.z)
 			body.rotation.y = face
 		body.play("Death01", 1.2, 0.15, true)
+		get_tree().create_timer(0.45).timeout.connect(func(): if is_instance_valid(body): body.drop_weapon(game))
 		game.on_enemy_dead(self)
 		return false
 	if boss and phase == 1 and hp < max_hp * 0.5:

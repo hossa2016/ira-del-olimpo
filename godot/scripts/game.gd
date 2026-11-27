@@ -30,8 +30,11 @@ var clock := 0.0
 var autotest := false
 var _frames := 0
 var unlocked := 0
+var audio: GameAudio
 
 func _ready() -> void:
+	audio = GameAudio.new()
+	add_child(audio)
 	_environment()
 	world_root = Node3D.new()
 	add_child(world_root)
@@ -47,7 +50,10 @@ func _ready() -> void:
 	ui.continue_pressed.connect(_on_continue)
 	ui.retry_pressed.connect(func(): _start_world(world_i, false))
 	ui.story_done.connect(_on_story_done)
+	ui.toggle_pressed.connect(_on_toggle)
 	_load()
+	audio.set_music(audio.music_on)
+	ui.set_toggles(audio.music_on, audio.voice_on)
 	var args := OS.get_cmdline_user_args()
 	for a in args:
 		if a.begins_with("--world="):
@@ -56,6 +62,7 @@ func _ready() -> void:
 	hero.reset_at(Vector3(0, 0, 3))
 	cam.global_position = hero.global_position + Vector3(0, 1.5, 0)
 	ui.show_menu(unlocked > 0, LIST_NAME(unlocked))
+	audio.music("menu", 0.5)
 	if "--autotest" in args:
 		autotest = true
 		call_deferred("_start_world", world_i, false)
@@ -67,10 +74,14 @@ func _load() -> void:
 	var cf := ConfigFile.new()
 	if cf.load(SAVE) == OK:
 		unlocked = int(cf.get_value("p", "mundo", 0))
+		audio.music_on = bool(cf.get_value("p", "musica", true))
+		audio.voice_on = bool(cf.get_value("p", "voz", true))
 
 func _save() -> void:
 	var cf := ConfigFile.new()
 	cf.set_value("p", "mundo", unlocked)
+	cf.set_value("p", "musica", audio.music_on)
+	cf.set_value("p", "voz", audio.voice_on)
 	cf.save(SAVE)
 
 # ---------------- entorno ----------------
@@ -133,6 +144,7 @@ func _build_world(i: int) -> void:
 	W = Worlds.LIST[i]
 	_apply_env(W)
 	Worlds.build(self, world_root, W.id)
+	audio.ambience(W.id)
 
 var _gt: Texture2D
 func _glow_tex() -> Texture2D:
@@ -152,12 +164,27 @@ func _glow_tex() -> Texture2D:
 	return t
 
 # ---------------- flujo ----------------
+func _on_toggle(which: String) -> void:
+	sfx("click")
+	if which == "music":
+		audio.set_music(not audio.music_on)
+	else:
+		audio.voice_on = not audio.voice_on
+		if not audio.voice_on:
+			audio.hush()
+		else:
+			audio.say("Narrador activado.")
+	ui.set_toggles(audio.music_on, audio.voice_on)
+	_save()
+
 func _on_play() -> void:
+	sfx("click")
 	unlocked = 0
 	_save()
 	_story_for(0)
 
 func _on_continue() -> void:
+	sfx("click")
 	_story_for(unlocked)
 
 func _story_for(i: int) -> void:
@@ -167,8 +194,12 @@ func _story_for(i: int) -> void:
 	hero.reset_at(Vector3(0, 0, 3))
 	state = "story"
 	ui.show_story(W.intro_t, W.intro, "Luchar", "intro")
+	audio.music("menu")
+	audio.say(W.intro_t.get_slice("·", 1).strip_edges() + ". " + W.intro)
 
 func _on_story_done(tag: String) -> void:
+	sfx("click")
+	audio.hush()
 	if tag == "intro":
 		_start_world(world_i, false)
 	elif tag == "outro":
@@ -177,6 +208,7 @@ func _on_story_done(tag: String) -> void:
 		else:
 			state = "menu"
 			ui.show_menu(true, LIST_NAME(unlocked))
+			audio.music("menu")
 
 func _clear_enemies() -> void:
 	for e in enemies:
@@ -197,6 +229,7 @@ func _start_world(i: int, rebuild: bool) -> void:
 	ui.set_playing(true)
 	state = "play"
 	gap = 0.5
+	audio.music(W.id, 1.0)
 	if autotest:
 		for a in OS.get_cmdline_user_args():
 			if a.begins_with("--wave="):
@@ -211,8 +244,10 @@ func _next_wave() -> void:
 		unlocked = maxi(unlocked, mini(world_i + 1, Worlds.LIST.size() - 1))
 		_save()
 		ui.set_playing(false)
+		audio.music("victoria", 0.6)
 		await get_tree().create_timer(1.2).timeout
 		ui.show_story("Victoria", W.outro, "Seguir" if world_i + 1 < Worlds.LIST.size() else "Menú", "outro")
+		audio.say(W.outro)
 		return
 	to_spawn = waves[wave - 1].duplicate()
 	spawn_t = 1.0
@@ -240,6 +275,11 @@ func _spawn(k: String) -> void:
 		ui.boss_l.text = e.title
 		ui.set_banner(e.title)
 		cam.shake(0.4)
+		audio.music("jefe", 1.0)
+		audio.say(e.title)
+		sfx({"mino": "roar", "cerb": "growl", "ares": "roar", "gig": "roar"}.get(e.kind, "roar"))
+	elif e.zombie:
+		sfx_at("rise", e.global_position)
 
 func summon(k: String, n: int) -> void:
 	for i in range(n):
@@ -248,6 +288,8 @@ func summon(k: String, n: int) -> void:
 
 func _on_dead() -> void:
 	state = "over"
+	audio.music("derrota", 0.8)
+	audio.say("Damón ha caído.")
 	await get_tree().create_timer(1.6).timeout
 	ui.show_over("Caíste en %s con %d puntos." % [W.name, score])
 
@@ -277,6 +319,7 @@ func _physics_process(dt: float) -> void:
 		for e in enemies:
 			e.tick(sdt, hero)
 	cam.tick(dt, hero)
+	_occlusion()
 	if state == "play":
 		spawn_t -= dt
 		var alive := enemies.filter(func(q): return q.st != "dead").size()
@@ -286,6 +329,8 @@ func _physics_process(dt: float) -> void:
 		for e in enemies.duplicate():
 			if e.st == "dead" and e.st_t > 3.5:
 				enemies.erase(e)
+				if e.body and is_instance_valid(e.body.dropped):
+					e.body.dropped.queue_free()
 				e.queue_free()
 		if to_spawn.is_empty() and enemies.is_empty():
 			gap -= dt
@@ -356,6 +401,7 @@ func hero_hit(h: Hero, c: Dictionary, final: bool) -> void:
 		_blood(e.global_position + Vector3(0, 1.2 * e.sc, 0), dir)
 		n += 1
 	if n > 0:
+		sfx("hit")
 		hitstop = 0.1 if final else 0.05
 		cam.shake(0.45 if final else 0.25)
 		h.rage = minf(100.0, h.rage + 4.0 * n)
@@ -369,6 +415,7 @@ func on_ira(h: Hero) -> void:
 	slowmo = 0.5
 	cam.shake(0.3)
 	ui.set_banner("¡Ira!")
+	sfx("ira")
 	get_tree().create_timer(0.45).timeout.connect(func():
 		_ring(h.global_position, 4.8, Color(1.0, 0.45, 0.1))
 		cam.shake(1.0)
@@ -395,6 +442,7 @@ func on_block(h: Hero) -> void:
 func on_guard_break(h: Hero) -> void:
 	cam.shake(0.5)
 	ui.set_banner("Guardia rota")
+	sfx("guard_break")
 	sparks(h.global_position + Vector3(0, 1.2, 0), Color(1, 0.6, 0.3), 26)
 
 func telegraph(_e: Node) -> void:
@@ -405,16 +453,20 @@ func on_boss_phase(e: Enemy) -> void:
 	match e.kind:
 		"ares":
 			ui.set_banner("Ares se enfurece")
+			audio.say("Ares se enfurece y llama a su guardia.")
 			summon("hop", 2)
 		"mino":
 			ui.set_banner("Asterión brama")
+			sfx("roar")
 		"cerb":
 			ui.set_banner("Cerbero arde")
+			sfx("growl")
 		_:
 			pass
 
 func shockwave(p: Vector3, radius: float, dmg: float, unbl: bool, src: Node) -> void:
 	_ring(p, radius, Color(1.0, 0.55, 0.2) if not unbl else Color(1.0, 0.25, 0.08))
+	sfx("boom")
 	cam.shake(0.6)
 	var d := hero.global_position - p
 	d.y = 0
@@ -423,6 +475,7 @@ func shockwave(p: Vector3, radius: float, dmg: float, unbl: bool, src: Node) -> 
 
 func on_enemy_dead(e: Enemy) -> void:
 	score += 1000 if e.boss else 100
+	sfx_at("death", e.global_position)
 	if not e.boss:
 		hero.hp = minf(hero.max_hp, hero.hp + 4.0)
 	if e == boss:
@@ -435,6 +488,7 @@ func on_enemy_dead(e: Enemy) -> void:
 		to_spawn.clear()
 
 func on_hero_hurt() -> void:
+	sfx("hurt")
 	ui.hurt_flash()
 	cam.shake(0.5)
 	Input.vibrate_handheld(30)
@@ -579,5 +633,26 @@ func _blood(p: Vector3, dir: Vector3) -> void:
 	add_child(ps)
 	get_tree().create_timer(1.2).timeout.connect(ps.queue_free)
 
-func sfx(_n: String) -> void:
-	pass
+func sfx(n: String) -> void:
+	audio.play(n)
+
+func sfx_at(n: String, p: Vector3) -> void:
+	audio.play(n, p.distance_to(hero.global_position))
+
+## Vuelve translúcido a quien se interpone entre la cámara y Damón.
+func _occlusion() -> void:
+	var cp := cam.cam.global_position
+	var hp := hero.global_position + Vector3(0, 1.2, 0)
+	var seg := hp - cp
+	var L := seg.length()
+	for e in enemies:
+		var c: Vector3 = e.global_position + Vector3(0, 1.0 * e.sc, 0)
+		var t := clampf((c - cp).dot(seg) / maxf(L * L, 0.001), 0.0, 1.0)
+		var d := (cp + seg * t).distance_to(c)
+		var near := cp.distance_to(c)
+		var f := 0.0
+		if e.st != "dead" and t < 0.92 and d < 0.75 * maxf(e.sc, 1.0) + e.r * 0.5:
+			f = 0.65
+		if near < 1.6 * e.sc:
+			f = maxf(f, 0.8)
+		e.set_fade(f)

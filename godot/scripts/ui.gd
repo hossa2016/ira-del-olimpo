@@ -6,6 +6,7 @@ signal play_pressed
 signal retry_pressed
 signal continue_pressed
 signal story_done(tag: String)
+signal toggle_pressed(which: String)
 
 var move := Vector2.ZERO
 var atk_edge := false
@@ -54,6 +55,23 @@ func _ready() -> void:
 	root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(root)
+	var vig := TextureRect.new()
+	var vg := Gradient.new()
+	vg.set_color(0, Color(0, 0, 0, 0))
+	vg.add_point(0.55, Color(0, 0, 0, 0))
+	vg.set_color(vg.get_point_count() - 1, Color(0.03, 0.01, 0.0, 0.55))
+	var vt := GradientTexture2D.new()
+	vt.gradient = vg
+	vt.fill = GradientTexture2D.FILL_RADIAL
+	vt.fill_from = Vector2(0.5, 0.5)
+	vt.fill_to = Vector2(1.05, 0.5)
+	vt.width = 256
+	vt.height = 256
+	vig.texture = vt
+	vig.stretch_mode = TextureRect.STRETCH_SCALE
+	vig.set_anchors_preset(Control.PRESET_FULL_RECT)
+	vig.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(vig)
 	flash = ColorRect.new()
 	flash.set_anchors_preset(Control.PRESET_FULL_RECT)
 	flash.color = Color(0.6, 0.1, 0.05, 0)
@@ -205,7 +223,15 @@ func _screen(title: String, text: String, btns: Array) -> Control:
 	return c
 
 func _build_menu() -> void:
-	menu = _screen("Ira del Olimpo", "Tebas, Creta, el Inframundo y el Olimpo. Un hoplita sin dios contra los monstruos de los dioses.", [["Nuevo juego", func(): play_pressed.emit()], ["Continuar", func(): continue_pressed.emit()]])
+	menu = _screen("Ira del Olimpo", "Tebas, Creta, el Inframundo y el Olimpo. Un hoplita sin dios contra los monstruos de los dioses.", [["Nuevo juego", func(): play_pressed.emit()], ["Continuar", func(): continue_pressed.emit()], ["Música: sí", func(): toggle_pressed.emit("music")], ["Narrador: sí", func(): toggle_pressed.emit("voice")]])
+	for i in [2, 3]:
+		var b: Button = menu.get_meta("btns")[i]
+		b.custom_minimum_size = Vector2(240, 48)
+		b.add_theme_font_size_override("font_size", 20)
+
+func set_toggles(music_on: bool, voice_on: bool) -> void:
+	menu.get_meta("btns")[2].text = "Música: " + ("sí" if music_on else "no")
+	menu.get_meta("btns")[3].text = "Narrador: " + ("sí" if voice_on else "no")
 
 func _build_over() -> void:
 	over = _screen("Has caído", "", [["Reintentar", func(): retry_pressed.emit()]])

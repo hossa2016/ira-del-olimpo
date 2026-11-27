@@ -46,6 +46,56 @@ const LIST := [
 	},
 ]
 
+static func floor_mat(scale_uv: float, tint: Color, rough := 0.88) -> StandardMaterial3D:
+	# piedra seca y mate: sin textura de rugosidad y con poco brillo especular
+	var m := tex_mat("res://assets/tex/floor_c.jpg", "res://assets/tex/floor_n.jpg", "", scale_uv, tint)
+	m.roughness = rough
+	m.metallic_specular = 0.3
+	m.normal_scale = 0.75
+	return m
+
+static func motes(root: Node3D, g: Game, col: Color, amount: int, rise := 0.05, size := 0.03) -> void:
+	var p := GPUParticles3D.new()
+	p.amount = amount
+	p.lifetime = 8.0
+	p.preprocess = 8.0
+	p.visibility_aabb = AABB(Vector3(-25, -2, -25), Vector3(50, 14, 50))
+	var pm := ParticleProcessMaterial.new()
+	pm.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_BOX
+	pm.emission_box_extents = Vector3(16, 3, 16)
+	pm.direction = Vector3(0.3, 1, 0.1)
+	pm.spread = 60.0
+	pm.initial_velocity_min = 0.05
+	pm.initial_velocity_max = 0.25
+	pm.gravity = Vector3(0, rise, 0)
+	pm.turbulence_enabled = true
+	pm.turbulence_noise_strength = 0.4
+	pm.turbulence_noise_scale = 3.0
+	pm.scale_min = 0.5
+	pm.scale_max = 1.3
+	var grad := Gradient.new()
+	grad.set_color(0, Color(col.r, col.g, col.b, 0))
+	grad.add_point(0.2, col)
+	grad.add_point(0.8, col)
+	grad.set_color(grad.get_point_count() - 1, Color(col.r, col.g, col.b, 0))
+	var gt := GradientTexture1D.new()
+	gt.gradient = grad
+	pm.color_ramp = gt
+	p.process_material = pm
+	var q := QuadMesh.new()
+	q.size = Vector2(size, size)
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	m.vertex_color_use_as_albedo = true
+	m.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+	m.albedo_texture = g._glow_tex()
+	q.material = m
+	p.draw_pass_1 = q
+	p.position = Vector3(0, 2.5, 0)
+	root.add_child(p)
+
 static func tex_mat(path: String, normal: String, rough: String, scale_uv: float, tint := Color.WHITE) -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()
 	m.albedo_texture = load(path)
@@ -239,7 +289,8 @@ static func _sea(root: Node3D, col: Color, rough: float, metal: float, y := -9.0
 	put(root, sea, m, Vector3(0, y, 0))
 
 static func _tebas(g: Game, root: Node3D) -> void:
-	platform(root, tex_mat("res://assets/tex/floor_c.jpg", "res://assets/tex/floor_n.jpg", "res://assets/tex/floor_r.jpg", 0.17, Color(0.82, 0.74, 0.64)))
+	platform(root, floor_mat(0.17, Color(0.82, 0.74, 0.64)))
+	motes(root, g, Color(1.0, 0.85, 0.6, 0.5), 60)
 	_sea(root, Color(0.12, 0.25, 0.32), 0.08, 0.3)
 	var isl_m := StandardMaterial3D.new()
 	isl_m.albedo_color = Color(0.42, 0.37, 0.3)
@@ -268,7 +319,8 @@ static func _tebas(g: Game, root: Node3D) -> void:
 		brazier(g, root, Vector3(cos(a), 0, sin(a)) * (AR + 1.2))
 
 static func _laberinto(g: Game, root: Node3D) -> void:
-	platform(root, tex_mat("res://assets/tex/floor_c.jpg", "res://assets/tex/floor_n.jpg", "res://assets/tex/floor_r.jpg", 0.21, Color(0.55, 0.46, 0.4)))
+	platform(root, floor_mat(0.21, Color(0.55, 0.46, 0.4), 0.92))
+	motes(root, g, Color(1.0, 0.6, 0.3, 0.6), 70, 0.08)
 	inlays(root, Color(0.25, 0.06, 0.04))
 	var stone := tex_mat("res://assets/tex/stone_c.jpg", "res://assets/tex/stone_n.jpg", "", 0.2, Color(0.62, 0.55, 0.48))
 	stone.roughness = 0.92
@@ -333,6 +385,7 @@ static func _inframundo(g: Game, root: Node3D) -> void:
 	platform(root, tex_mat("res://assets/tex/rock_c.jpg", "res://assets/tex/rock_n.jpg", "", 0.12, Color(0.5, 0.52, 0.55)))
 	_sea(root, Color(0.02, 0.12, 0.1), 0.05, 0.4, -3.0, Color(0.02, 0.35, 0.28))
 	inlays(root, Color(0.04, 0.2, 0.17))
+	motes(root, g, Color(0.4, 1.0, 0.85, 0.8), 110, 0.15, 0.05)
 	var rock_m := tex_mat("res://assets/tex/rock_c.jpg", "res://assets/tex/rock_n.jpg", "", 0.25, Color(0.42, 0.42, 0.45))
 	# estalagmitas alrededor de la arena
 	for k in range(26):
@@ -374,8 +427,9 @@ static func _inframundo(g: Game, root: Node3D) -> void:
 static func _olimpo(g: Game, root: Node3D) -> void:
 	var marble := tex_mat("res://assets/tex/marble_c.jpg", "", "", 0.3, Color(0.92, 0.89, 0.84))
 	marble.roughness = 0.28
-	var floor_m := tex_mat("res://assets/tex/floor_c.jpg", "res://assets/tex/floor_n.jpg", "res://assets/tex/floor_r.jpg", 0.14, Color(1.0, 0.97, 0.92))
-	floor_m.roughness = 0.6
+	var floor_m := floor_mat(0.14, Color(1.0, 0.97, 0.92), 0.55)
+	floor_m.metallic_specular = 0.45
+	motes(root, g, Color(1.0, 0.85, 0.45, 0.7), 80, 0.03, 0.035)
 	platform(root, floor_m)
 	inlays(root, Color(0.75, 0.55, 0.25))
 	# mar de nubes

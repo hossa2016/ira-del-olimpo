@@ -422,6 +422,9 @@ func _pose(dt: float, sp: float) -> void:
 		neck.transform = Transform3D(Basis.looking_at(dirv.normalized(), Vector3.UP), mid)
 		neck.scale = Vector3(1, 1, dirv.length() / 1.0)
 
+func set_fade(f: float) -> void:
+	super.set_fade(f)
+
 func parried() -> void:
 	if st == "dead":
 		return
